@@ -1,0 +1,638 @@
+#!/bin/ksh
+
+#*************************************************************************
+# Script servant a creer un Makefile pour tous les fichiers
+# present dans l'environnement etagere ou dans tous les repertoires
+# indiques dans la variable RCSPATH
+#
+# Modification mars 1993: - extensions reconnues: .ftn, .ptn, .f, .c, .h, .cdk
+#                                                 .s
+#              avril 1995:- enlever le test de personalite multiple
+#                           (who am i | grep `whoami`) et r.isowner. Remplaces
+#                           par un appel unique a un nouveau programme
+#                           r.ucanrm qui verifie si l'usager est 
+#                           proprietaire d'un fichier et si ce fichier est en
+#                           mode ecriture.
+#                           (r.ucanrm = r.you_can_remove)
+#              decembre 2000:- ajout de .ftn90 , .f90 et .cdk90 (Luc Corbeil)
+#*****************************************************************************
+
+#**********************************************************************
+# fonction fait_des_listes sert a creer les fichers contenant les 
+# differents types de fichiers (.o, .f, .ftn, .ptn, .s, .c, .h, .cdk)
+# J. Caveen - fevrier 1993
+#**********************************************************************
+
+fait_des_listes()
+{
+   exten=$1
+   if(test "*.${exten}" != "`echo *.${exten}`")
+   then
+      exten1=`echo ${exten} | sed 's/,v//'`
+      ls *.${exten} | sed 's/,v//' >> $TMPDIR/$$_liste_${exten1}
+      if(test "$#" -gt "1")
+      then
+       shift
+
+       for i in $*
+       do
+          cat  $TMPDIR/$$_liste_${exten1} | sed "s/\.${exten1}/\.${i}/" >> $TMPDIR/$$_liste_${i}
+       done
+      fi
+   fi
+} 
+
+fait_les_modules()
+{
+    for suf in $RCSEXT_SAVED; do
+      suf2="$suf2 *.$suf*"
+    done
+    fichier=$1 ; shift
+    reper=$1 ; shift
+    rep_ici=`pwd`
+
+    while [ "$reper" != "" ]
+    do
+      cd ${reper%:*}
+      r.modules.pl *.ptn*([0-9,v]) *.[fchs]*([0-9,v]) *.cdk*([0-9,v]) $suf2 >> $fichier
+      cd $rep_ici
+      reper=$1 ; 
+      if [ "$reper" != "" ] ; then
+         shift 2>/dev/null
+      fi
+    done
+}
+#**********************************************************************
+# fonction fait_les_includes cree un fichier contenant la liste
+# de tous les fichiers contenant un enonce du type #include unfic
+# cette liste, une fois triee sert d'entree a arbre qui s'en servira
+# pour dresser un arbre de dependances 'complet' des fichiers les uns
+# par rapport aux autres.
+# J. Caveen - fevrier 1993
+#**********************************************************************
+fait_les_includes()
+{
+#    echo SUF $suffixes
+#    for suf in $RCSEXT_SAVED; do
+#      suf2="$suf2 *.$suf*"
+#      echo SUF2 $suf2
+#    done
+#    r.modules.pl *.ptn* *.[fchs]* $suf2   >> $TMPDIR/$$_liste_module
+    export fIcHiEr_MoDuLe=$1
+    if(test "*.ptn*([0-9,v])" != "`echo *.ptn*([0-9,v])`")
+    then
+         echo *.ptn*([0-9,v]) | r.depend.pl >> $TMPDIR/$$_liste_include 2>>$TMPDIR/$$_liste_error_incl
+    fi
+    if(test "*.[fchs]*([0-9,v])" != "`echo *.[fchs]*([0-9,v])`")
+    then
+         echo *.[fchs]*([0-9,v]) | r.depend.pl  >> $TMPDIR/$$_liste_include 2>>$TMPDIR/$$_liste_error_incl
+    fi
+    if(test "*.ftn*([0-9,v])" != "`echo *.ftn*([0-9,v])`")
+    then
+         echo *.ftn*([0-9,v]) | r.depend.pl  >> $TMPDIR/$$_liste_include 2>>$TMPDIR/$$_liste_error_incl
+    fi
+    if(test "*.cdk*([0-9,v])" != "`echo *.cdk*([0-9,v])`")
+    then
+         echo *.cdk*([0-9,v]) | r.depend.pl  >> $TMPDIR/$$_liste_include 2>>$TMPDIR/$$_liste_error_incl
+    fi
+#    if(test "*.f90*" != "`echo *.f90*`")
+#    then
+#         echo *.f90* | r.depend.pl  >> $TMPDIR/$$_liste_include
+#    fi
+    for new_ext in $RCSEXT_SAVED; do
+      echo "SUF1 $new_ext *.$new_ext*"
+      if(test "*.$new_ext*" != "`echo *.$new_ext*`")
+      then
+         echo *.$new_ext* | r.depend.pl  >> $TMPDIR/$$_liste_include  2>>$TMPDIR/$$_liste_error_incl
+      fi
+    done 
+#    cp $TMPDIR/$$_liste_include LISTE_INCLUDE
+    unset fIcHiEr_MoDuLe
+}
+
+    
+#**********************************************************
+# fonction dressant selon un certain format les listes de *
+# fichiers necessaires au bon fonctionnement des fichiers *
+# Makefile et make_cdk  e.g:                              *
+#                                                         *
+# COMDECKS \                                              *
+#            aaa.cdk     bbb.cdk    ccc.cdk               *
+#**********************************************************
+sousliste()
+{
+titre=$1
+variete=$2
+if (test -s $TMPDIR/$$_liste_$variete)
+then
+    liste=`cat $TMPDIR/$$_liste_$variete | sort -bu`
+    set $liste
+    echo ${titre}= \\
+    while [ "$5" != "" ]
+    do
+       echo '        ' $1 '     '  $2  '     ' $3  '     ' $4 \\
+       shift ; shift ; shift ; shift
+    done
+    if [ "$4" != "" ]
+    then
+       echo '        '  $1  '     ' $2  '     ' $3  '     ' $4
+    elif [ "$3" != "" ]
+    then
+       echo '        '  $1 '     '  $2  '     '  $3
+    elif [ "$2" != "" ]
+    then
+       echo '        '  $1 '     '  $2 
+    elif [ "$1" != "" ]
+    then
+       echo '        '  $1
+    fi
+    echo
+fi
+}
+#set -x
+/bin/rm -f l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e_2
+
+#si machine hp, mettre option -H a cpp pour eviter message 
+#d'erreur "argument line too long"
+if [ "`uname -s`" = "HP-UX" ]
+then
+        SCPPFL="-H15000"
+else
+        SCPPFL=" "
+fi
+
+export LANG=C
+
+if(test "$CMCLNG" = "francais")
+then
+eval `${CCLARGS:-cclargs} $0 "[Creer un fichier de descriptions Makefile pour make]"\
+     -f "non" "oui" "[Mettre f=f pour utiliser make_exp en dehors du\ncontexte d'etagere]"\
+      -COMPILE "compile" "compile" "[Nom a donner au fichier destine a recevoir les fichiers FORTRAN]"\
+      -DEFINE "" "=-DNEC=nec" "[Valeur a donner a la variable DEFINE du Makefile]"\
+      -MALIB "malib.a" "malib.a" "[Nom a donner a la variable MALIB du fichier Makefile]"\
+      -quick " " "quick" "[si quick=quick, on ne fait que re-injecter les fichier\nmes_recettes et my_targets dans le Makefile]"\
+      -FFLAGS " " " " "[Liste des parametres pour f77]"\
+      -CFLAGS " " " " "[Liste des parametres pour cc]"\
+      -CPPFLAGS " " " " "[Liste des parametres pour cpp]"\
+      -ASFLAGS " " " " "[Liste des parametres pour as]"\
+      -LIBRAIRE "non" "oui" "[Creation des fichiers de dependances dans les RCS seulement]" \
+      -LONG "non" "oui" "[N'utilise pas les fichiers de l'option -LIBRAIRE]" \
+    ++ $*`
+else
+eval `${CCLARGS:-cclargs} $0 "[Create a description file Makefile for make]"\
+     -f "non" "oui" "[Put f=f to use make_exp outside the etagere context]"\
+      -COMPILE "compile" "compile" "[Name of the target file for FORTRAN modules]"\
+      -DEFINE "" "=-DNEC=nec" "[Value for the DEFINE variable of Makefile]"\
+      -MALIB "malib.a" "malib.a" "[Name for the MALIB variable of Makefile]"\
+      -quick " " "quick" "[If quick=quick, we just re-append the mes_recettes and my_targets\nfiles in Makefile]"\
+      -FFLAGS " " " " "[Parameter list for f77]"\
+      -CFLAGS " " " " "[Parameter list for cc]"\
+      -CPPFLAGS " " " " "[Parameter list for cpp]"\
+      -ASFLAGS " " " " "[Parameter list for as]"\
+      -LIBRAIRE "non" "oui" "[Create only dependency files in RCS directories]" \
+      -LONG "non" "oui" "[Do not use files created by -LIBRAIRE flag]" \
+    ++ $*`
+fi
+
+
+if(test "$quick" = "quick")
+then
+    cat Makefile | sed -n "1,/^#Descriptions des recettes personnelles/ p" >\
+        $TMPDIR/$$_makefile
+    cat $TMPDIR/$$_makefile > Makefile
+    echo ' ' >> Makefile
+    echo '#Descriptions des recettes personnelles' >> Makefile
+    echo ' ' >> Makefile
+    if(test -s mes_recettes)
+    then
+        echo "include mes_recettes" >> Makefile
+    fi
+    if(test -s my_targets)
+    then
+       cat my_targets >> Makefile
+    fi
+    /bin/rm $TMPDIR/$$_makefile
+    exit
+fi
+
+if(test "$CPPFLAGS" != " " -o "$CFLAGS" != " ")
+then
+    if(test "$CMCLNG" = "francais")
+    then
+        echo 'Pour changer les valeurs de CFLAGS et CPPFLAGS, vous devez'
+        echo 'editer le fichier Makefile ou utiliser un fichier mes_recettes'
+    else
+        echo 'To modify CFLAGS and CPPFLAGS you must edit the file Makefile'
+        echo 'or use a file mes_recettes '
+    fi
+    exit
+fi
+
+ici=`pwd`
+echo ' '
+echo '*************************************************************'
+echo '*   Si un fichier mes_recettes existe dans le repertoire    *'
+echo '*   courant, il sera ajoute a la fin du fichier Makefile    *'
+echo '*                                                           *'
+echo '*   Si un fichier  .recettes existe, dans un repertoire RCS *'
+echo '*   il sera ajoute a la fin du fichier Makefile             *'
+echo '*                                                           *'
+echo '*   If a file named my_targets exists in the current        *'
+echo '*   directory, it will be added at the end of Makefile      *'
+echo '*                                                           *'
+echo '*   If a file named .recettes  exists in a RCS directory,   *'
+echo '*   it will be added at the end of the file Makefile        *'
+echo '*************************************************************'
+#verifier si le fichier ./.exper_cour existe dans le repertoire courant.
+#si oui,
+#on en extrait le RCSPATH 
+#sinon,
+# verifier si la variable d'environnement RCSPATH est initialisee
+#cii=`pwd`
+if [ "$f" = "non" ]
+then
+   if(test ! -s ${ici}/./.exper_cour)
+   then
+      if(test "$CMCLNG" = "francais")
+      then
+        echo "Le fichier ./.exper_cour est absent. On arrete!"
+        echo "Pour utiliser make_exp sans ce fichier, "
+        echo "consultez le manpage de make_exp"
+      else
+        echo "File ./.exper_cour is missing. STOP!"
+        echo "To use make_exp without this file, "
+        echo "consult the make_exp manpage"
+      fi
+      exit 1
+   fi
+. ${ici}/./.exper_cour
+#tempodir=${ici}/.make_exp
+
+   suffixes="cdk [fp]tn [fcsh] f90 cdk90 ftn90 $RCSEXT_SAVED"
+   echo suffixes traites: $suffixes
+   ledefaut=collectivisme_101
+   lexperiencebase=$RCSBASE
+   if(test -d RCS)
+     then RCSPATH="$ici/RCS: $RCSPATH"
+   fi
+elif (test "${RCSPATH:-RIEN}" = "RIEN")
+then
+   ledefaut=co  
+   if(test -d RCS)
+      then RCSPATH="$ici/RCS: "
+   fi
+else
+   ledefaut=collectivisme_101
+   if(test -d RCS)
+     then RCSPATH="$ici/RCS: $RCSPATH"
+   fi
+fi
+#inverser l'ordre de fouille des differents repertoires du RCSPATH
+RCSTEMP=""
+for i in $RCSPATH
+do
+   RCSTEMP="$i $RCSTEMP"
+done
+RCSPATH=$RCSTEMP
+#echo RCSPATH $RCSTEMP
+#obtenir les listes de fichiers  dans la liste de repertoire
+#donnee par la variable RCSPATH
+# obtenir la  liste des #include
+#
+if(test "$CMCLNG" = "francais")
+then
+     lemessage='On fouille dans repertoire:experience'
+else
+     lemessage='Searching directory:experiment'
+fi
+echo '#Descriptions des recettes personnelles' > "$TMPDIR"/$$_recettes
+
+#obtenir la liste des modules et le fichier dans lequel ils sont
+#if (test "$LIBRAIRE" = "non")
+#then
+#  if [ -f ${tempodir}/les_modules ]
+#  then
+#    fait_les_modules "$TMPDIR"/$$_les_modules $ici
+#    cat ${tempodir}/les_modules >> "$TMPDIR"/$$_les_modules
+#  else
+#    fait_les_modules "$TMPDIR"/$$_les_modules $RCSPATH $ici
+#  fi
+#fi
+for p in $RCSPATH
+do
+  rcsdir=${p%:*}
+  cd $rcsdir
+  tempodir=$rcsdir/make_exp
+  if ( test "$LIBRAIRE" = "non" )
+  then
+     if [ -d $tempodir ]
+     then
+        if [ -f $tempodir/setup_* ] 
+	then
+	  if [[ "X$(find $rcsdir -newer $tempodir/setup_* -print)X" != "XX" ]]
+	  then
+	    echo "WARNING: $tempodir/setup_yyyymmdd is outdated: use key -LIBRAIRE "
+	  fi
+	else
+	  echo "WARNING: $tempodir/setup_yyyymmdd is missing: use key -LIBRAIRE"
+	fi
+     fi
+     if [[ "$LONG" = "non" ]]
+     then
+       if [ -f ${tempodir}/liste_modules ]
+       then
+         cat ${tempodir}/liste_modules >> "$TMPDIR"/$$_liste_modules
+       else
+         fait_les_modules "$TMPDIR"/$$_liste_modules $rcsdir 
+       fi
+     else
+       fait_les_modules "$TMPDIR"/$$_liste_modules $rcsdir     
+     fi
+
+     echo $lemessage $rcsdir 
+#    Dresser les differentes listes de fichiers
+     set -A scrap `ls ${tempodir}/liste_* 2>/dev/null` A1Aa2aA1A 2>/dev/null
+     if [[ -f  ${scrap[0]} && "$LONG" = "non" ]]
+     then
+       for i in $(ls ${tempodir}/liste_[fpcsho]*)
+       do
+         exten=$(echo ${i##*_} | sed 's/,v//')
+         cat $i >> "$TMPDIR"/$$_${i##*/}
+       done
+     else 
+       fait_des_listes ftn,v f o
+       fait_des_listes ftn90,v f90 o
+       fait_des_listes ptn,v f o
+       fait_des_listes f,v o
+       fait_des_listes f90,v o
+       fait_des_listes c,v o
+       fait_des_listes s,v o
+       fait_des_listes cdk,v
+       fait_des_listes cdk90,v o
+       fait_des_listes h,v
+#       cp $TMPDIR/$$_liste* ${tempodir}
+       for new_ext in $RCSEXT_SAVED ; do
+         fait_des_listes $new_ext,v
+       done;
+     fi
+#    Generer le fichier contenant la liste des dependances
+     if [[ -f ${tempodir}/liste_include && "$LONG" = "non" ]] 
+     then
+       cat ${tempodir}/liste_include >> "$TMPDIR"/$$_liste_include
+     else
+       fait_les_includes "$TMPDIR"/$$_liste_modules
+#       cp "$TMPDIR"/$$_liste_include ${tempodir}/$$_liste_include
+     fi
+
+     rm -f $TMPDIR/.recettes* 2>/dev/null
+     rm -f $TMPDIR/.cibles* 2>/dev/null
+     if [ -f Recettes,v ] 
+     then
+       cp Recettes,v $TMPDIR/.recettes,v
+     else
+       cp .recettes $TMPDIR 2>/dev/null
+     fi
+     if [ -f Cibles,v ] 
+     then
+       cp Cibles,v $TMPDIR/.cibles,v
+     else
+       cp .cibles $TMPDIR 2>/dev/null
+     fi
+     cd $TMPDIR
+     co -r"${p##*:}" .recettes 2>/dev/null
+     co -r"${p##*:}" .cibles 2>/dev/null
+     if (test -s .recettes)
+     then
+         echo " " >> "$TMPDIR"/$$_recettes
+         echo "#Descriptions du fichier ${rcsdir}/.recettes" >> "$TMPDIR"/$$_recettes
+         echo " " >> "$TMPDIR"/$$_recettes
+         cat .recettes >> "$TMPDIR"/$$_recettes
+     fi
+     if (test -s .cibles)
+     then
+         echo " " >> "$TMPDIR"/$$_recettes
+         echo "#Descriptions du fichier ${rcsdir}/.cibles" >> "$TMPDIR"/$$_recettes
+         echo " " >> "$TMPDIR"/$$_recettes
+         cat .cibles >> "$TMPDIR"/$$_recettes
+     fi
+  else
+     echo 'Generation des fichiers de dependances du RCS'
+     if (test -d $tempodir)
+     then
+	echo "Ecriture dans $tempodir"
+     else
+        echo "Creation de $tempodir"
+	mkdir $tempodir
+	statut=$?
+	if ( test "$statut" != "0" )
+	then
+	  echo "Impossible de creer $tempodir: verifiez les permissions"
+	  exit 1
+	fi
+     fi
+     fait_les_modules "$TMPDIR"/$$_liste_modules $rcsdir     
+     fait_des_listes ftn,v f o
+     fait_des_listes ftn90,v f90 o
+     fait_des_listes ptn,v f o
+     fait_des_listes f,v o
+     fait_des_listes f90,v o
+     fait_des_listes c,v o
+     fait_des_listes s,v o
+     fait_des_listes cdk,v
+     fait_des_listes cdk90,v o
+     fait_des_listes h,v
+     fait_les_includes "$TMPDIR"/$$_liste_modules
+     for file in `ls $TMPDIR/$$_liste*`
+     do
+       echo Ecriture de $tempodir/${file#*$$_}
+       cp $file $tempodir/${file#*$$_}
+     done
+     rm $tempodir/setup_* 2> /dev/null
+     touch $tempodir/setup_$(date +%Y%m%d)
+  fi   
+  cd $ici
+done
+if [[ "$LIBRAIRE" = "oui" ]]
+then
+     /bin/rm  "$TMPDIR"/$$_*
+     exit 0
+fi
+fait_les_modules "$TMPDIR"/$$_liste_modules ${ici}
+#Dresser les differentes listes de fichiers pour le repertoire de travail
+echo $lemessage  $ici
+fait_des_listes ptn f o
+fait_des_listes ftn f o
+fait_des_listes ftn90 f90 o
+fait_des_listes f o
+fait_des_listes f90 o
+fait_des_listes c o
+fait_des_listes s o
+fait_des_listes cdk
+fait_des_listes cdk90 o
+fait_des_listes h
+for new_ext in $RCSEXT_SAVED ; do
+    fait_des_listes $new_ext
+done;
+
+if(test -s mes_recettes -o -s my_targets)
+then
+     echo " " >> "$TMPDIR"/$$_recettes
+     if(test -s mes_recettes)
+     then
+        echo "include mes_recettes" >> "$TMPDIR"/$$_recettes
+     fi
+     if(test -s my_targets)
+     then
+         cat my_targets >> "$TMPDIR"/$$_recettes
+     fi
+fi
+#Generer le fichier contenant la liste des dependances
+fait_les_includes "$TMPDIR"/$$_liste_modules
+
+# Afficher les modules non trouves:
+
+if (test -s $TMPDIR/$$_liste_error_incl) then
+  cat $TMPDIR/$$_liste_error_incl | sort -u
+fi
+
+#on verifie s'il y a des fichiers de type .cdk, .cdk90 et ou .h
+if(test -s $TMPDIR/$$_liste_include)
+then
+    lescdk=oui
+
+#   Production du fichier de dependances
+    cat $TMPDIR/$$_liste_include  | sort -u  > $TMPDIR/$$_liste_pour_arbre
+#    cp $TMPDIR/$$_liste_pour_arbre LISTE
+    awk '{print $2,$3  }' $TMPDIR/$$_liste_pour_arbre | sort -u > $TMPDIR/$$_liste_pour_arbre2
+    liste_fichier=`grep -v "\.o" $TMPDIR/$$_liste_pour_arbre2`
+
+    set -A liste_exception mpif.h model_macros_f.h rpnmacros.h prof_f.h
+    
+
+    for fichier in $liste_fichier
+      do   
+#      echo $fichier FICHIER
+      TROUVE=FALSE
+      for p in $RCSPATH .
+      do
+#      echo PATH ${p%:*}/${fichier},v
+#      test -s ${p%:*}/${fichier},v
+#      echo $?
+	 if [[ -s ${p%:*}/$fichier ]] then
+#	    echo 'TROUVE' $fichier
+	    TROUVE=TRUE
+         fi
+	 if [[ -s ${p%:*}/${fichier},v ]] then
+#	    echo 'TROUVE' $fichier
+	    TROUVE=TRUE
+         fi
+      done;
+#      echo TROUVE $TROUVE $fichier
+      if [[ $TROUVE = FALSE ]] then
+         grep -v $fichier $TMPDIR/$$_liste_pour_arbre >  $TMPDIR/$$_liste_pour_arbre2
+	 cp $TMPDIR/$$_liste_pour_arbre2 $TMPDIR/$$_liste_pour_arbre
+	 trouve_except=FALSE
+	 for except in ${liste_exception[@]} 
+	   do
+	      if [[ $except = $fichier ]] then
+	         trouve_except=TRUE
+	      fi
+           done;
+	 if [[ $trouve_except = FALSE ]] then
+	    echo "WARNING: file $fichier not found"
+         fi
+      fi
+    done;
+#    cp $TMPDIR/$$_liste_pour_arbre liste_pour_arbre
+    arbre $TMPDIR/$$_liste_pour_arbre > $TMPDIR/$$_liste_tempor 
+fi 
+
+
+if(test "$TMPDIR/$$_liste_[fp]tn" != "`echo $TMPDIR/$$_liste_[fp]tn`")
+then
+cat $TMPDIR/$$_liste_[fp]tn >> $TMPDIR/$$_liste_tempor
+fi
+if(test "$TMPDIR/$$_liste_[fp]tn90" != "`echo $TMPDIR/$$_liste_[fp]tn90`")
+then
+cat $TMPDIR/$$_liste_[fp]tn90 >> $TMPDIR/$$_liste_tempor
+fi
+if(test -r $TMPDIR/$$_liste_cdk90 )
+then
+cat $TMPDIR/$$_liste_cdk90 >> $TMPDIR/$$_liste_tempor
+fi
+if(test -r $TMPDIR/$$_liste_cdk )
+then
+cat $TMPDIR/$$_liste_cdk >> $TMPDIR/$$_liste_tempor
+fi
+if(test -r $TMPDIR/$$_liste_c )
+then
+cat $TMPDIR/$$_liste_c >> $TMPDIR/$$_liste_tempor
+fi
+sort -u $TMPDIR/$$_liste_tempor > $TMPDIR/$$_liste_triee 2> /dev/null
+
+#cp  $TMPDIR/$$_liste_triee LISTE_TRIEE
+
+awk '$1 !~ /\.o$/'  $TMPDIR/$$_liste_triee >  $TMPDIR/$$_liste_triee2
+#awk '$1 !~/\.cdk90$/ || $2 !~ /\.cdk90$/ '  $TMPDIR/$$_liste_triee2 >  $TMPDIR/$$_liste_triee
+
+r.depliste.pl $TMPDIR/$$_liste_triee2
+
+#Generer les listes de types de fichiers
+sousliste FTNDECKS ftn > $TMPDIR/$$_sousliste_Makefile
+sousliste FTN90DECKS ftn90 >> $TMPDIR/$$_sousliste_Makefile
+sousliste CDECKS c >>  $TMPDIR/$$_sousliste_Makefile
+sousliste FDECKS f >> $TMPDIR/$$_sousliste_Makefile
+sousliste F90DECKS f90 >> $TMPDIR/$$_sousliste_Makefile
+sousliste ASDECKS s >> $TMPDIR/$$_sousliste_Makefile
+sousliste OBJECTS o >> $TMPDIR/$$_sousliste_Makefile
+#sousliste COMDECKS cdk >> $TMPDIR/$$_sousliste_Makefile
+#sousliste HDECKS h >> $TMPDIR/$$_sousliste_Makefile
+sousliste COMDECKS cdk > $TMPDIR/$$_sousliste_make_cdk
+sousliste COMDECKS90 cdk90 >> $TMPDIR/$$_sousliste_make_cdk
+sousliste HDECKS h >> $TMPDIR/$$_sousliste_make_cdk
+for new_ext in $RCSEXT_SAVED ; do
+    sousliste AUTRES$new_ext $new_ext >> $TMPDIR/$$_sousliste_make_cdk
+done
+
+# 
+# on inclus les comdecks et .h dans les listes pour Makefile
+cat $TMPDIR/$$_sousliste_make_cdk >> $TMPDIR/$$_sousliste_Makefile
+
+#sed 's/\.cdk90/\.o/g' <l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e >l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e_1.4
+sed 's/\.f:/\.o:/' <l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e >l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e_1.5
+sed 's/\.f90:/\.o:/' <l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e_1.5 >l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e_2
+r.nocirc.pl l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e > l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e8
+mv l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e8 l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e
+# . $ARMNLIB/include/make_exp/targ1
+
+m4 -Dm4_COMPILE=${COMPILE} -Dm4_DEFINE=${DEFINE} -Dm4_FFLAGS=${FFLAGS} -Dm4_ASFLAGS=${ASFLAGS} \
+-Dm4_exper=${lexperiencebase} -Dm4_MALIB=${MALIB} -Dm4_ledefaut=${ledefaut} \
+-Dm4_TMPDIR=${TMPDIR} -Dm4_ARMNLIB=${ARMNLIB} -Dm4_SS=$$ -Dm4_LESCDK=${lescdk} \
+-Ushift $ARMNLIB/include/make_exp/targ1 > Makefile 
+
+#ATTENTION: les macros built-in de m4 peuvent entrer en conflit
+#avec des noms de sous-routines, d'ou le -Ushift.
+
+#if (test "$lescdk" = "oui")
+#then
+#. $ARMNLIB/include/make_exp/docdk1 
+#else
+#. $ARMNLIB/include/make_exp/docdk2
+#fi
+
+#/lib/cpp ${SCPPFL} -P <"$TMPDIR"/$$_tempdck |sed 's/^c#/#/' > Makefile
+
+if(test "$lescdk" = "oui")
+then
+m4 -Dm4_ledefaut=${ledefaut} -Dm4_TMPDIR=${TMPDIR} -Dm4_SS=$$ \
+$ARMNLIB/include/make_exp/mktmplcdk> make_cdk
+#. $ARMNLIB/include/make_exp/mktmplcdk
+#  /lib/cpp ${SCPPFL} -P <"$TMPDIR"/$$_tempcdk > make_cdk
+fi
+
+if(test -s "$TMPDIR"/$$_recettes)
+   then cat "$TMPDIR"/$$_recettes >> Makefile
+fi
+
+/bin/rm  "$TMPDIR"/$$_*
+/bin/rm l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e* l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e*

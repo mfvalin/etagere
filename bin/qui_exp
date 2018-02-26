@@ -1,0 +1,15 @@
+#!/bin/ksh
+###########################################################
+# script servant a mettre fin a une experience sans faire
+# la sauvegarde des fichiers.
+# on ne peut faire quitexp que sur l'experience courante
+###########################################################
+    if(test -s ./.exper_cour)
+    then
+       rm ./.exper_cour
+    fi
+
+    if(test -s histoire)
+    then
+       rm histoire
+    fi

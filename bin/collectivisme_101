@@ -1,0 +1,66 @@
+#!/bin/ksh
+
+fetch_module ()
+{
+ module=$1
+ if(test "$CMCLNG" = "francais")
+     then
+         messag1='extraction de la version '
+         messag2=' du module '
+         messag3='du repertoire '
+     else
+         messag1='extraction of version '
+         messag2='of module '
+         messag3='from directory '
+ fi
+
+     for p in $RCSPATH
+     do
+        set `echo "$p" | sed 's/:/ /'`
+        co -r"$2" "$1"/"$module",v  2> /dev/null
+        if(test -s "$module")
+        then
+           echo "$messag1" "$2" "$messag2" "$module" 
+           echo "$messag3"  "$1"
+           return
+        fi
+     done
+if(test ! -s "$module")
+then
+ echo  la version "$2" du module "$module"  est manquante
+ rm -f $module
+ cat << VIDE > $module
+
+
+VIDE
+ chmod 444 $module
+fi
+}
+module=$1
+case $module in
+      *.ftn90 | *.cdk90 | *.f90 | *.ftn | *.ptn | *.cdk | *.f | *.c | *.h | *.s) ;;
+                          *) exit 1;;
+esac
+if(test -s ./.exper_cour)
+then
+. ./.exper_cour
+else
+  if(test "${RCSPATH:-rien}" = "rien")
+  then
+   if(test "$CMCLNG" = "francais")
+   then
+    echo "Pas d'experience en cours ou pas de variable d'environnement RCSPATH"
+   else
+    echo "No active experiment or no RCSPATH environment variable"
+   fi
+    exit 1
+  fi
+fi
+
+co -r"$RCSBASE" "$module" 2> /dev/null
+if(test -s "$module")
+then
+ echo extraction de la version "$RCSBASE" du module "$module" 
+else
+fetch_module $module
+fi

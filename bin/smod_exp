@@ -1,0 +1,33 @@
+#!/bin/ksh
+if(test "$#" = "0")
+then
+    echo " \n\n  usage: "
+    echo "         smod_exp exp_ref"
+    exit 0
+fi
+
+if(test -s ./.exper_cour)
+then
+. ./.exper_cour
+else
+   if(test "$CMCLNG" = "francais")
+   then
+      echo "Il n'y a pas d'experience en cours, On arrete !"
+   else
+      echo "No active experiment, STOP !"
+   fi
+   exit 1
+fi
+
+exp_ref=$1
+
+for i in RCS/*
+do
+     ndiff=`rcsdiff -r${RCSBASE} -r${exp_ref} ${i} | wc -l`
+     if(test "$ndiff" -gt "0")
+     then
+           fichier=`basename ${i} ',v'`
+           co -r${RCSBASE} $fichier
+           chmod u+w $fichier
+     fi
+done

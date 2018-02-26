@@ -1,0 +1,169 @@
+
+#############################################################
+# script servant a produire une nouvelle revision
+# de tous les fichiers d'un repertoire RCS
+# Auteur: James Caveen - mars 1992
+#############################################################
+
+
+eval `${CCLARGS:-cclargs} $0 "[Faire une revision globale de fichiers rcs]"\
+       -RCS "nul" "RCS" "[Nom du repertoire RCS cible contenant les fichiers\npour lesquelles on cree la nouvelle revision]"\
+       -r ",,,," ",,,," "[Numero de la revision globale a creer]"\
+       -log ",,,," ",,,," "[Nom du fichier de description 'log message' a utiliser]"\
+       -tous "non" "oui" "[Si tous=oui, tous les fichiers du repertoire courant\nseront injectes dans le repertoire RCS specifie]"\
+  ++ $*`
+
+#obtenir la liste de tous les fichiers presents dans le repertoire RCS
+#et absent dans le repertoire de travail
+#et de tous les fichiers presents ici et absent dans RCS (on a obtenu ces
+# fichiers autrement que par omd_exp 
+
+
+ici=`pwd`
+#obtenir la liste complete des fichers dans le repertoire RCS cible
+cd $RCS
+if(test -s *.[fp]tn,v)
+then echo *.[fp]tn,v | sed 's/,v//g' > "$TMPDIR"/"$$_RCS_lls"
+fi
+if (test -s *.[fcsh],v)
+then echo *.[fcsh],v | sed 's/,v//g' >> "$TMPDIR"/"$$_RCS_lls"
+fi
+if(test -s *.cdk,v)
+then echo *.cdk,v | sed 's/,v//g' >> "$TMPDIR"/"$$_RCS_lls"
+fi
+
+cat "$TMPDIR"/"$$_RCS_lls" | sed 's/ /\
+/g' > "$TMPDIR"/"$$_RCS_ls"
+cd $ici
+if(test "$tous" != "oui")
+then
+    #on met un lock a la revision la plus recente de  tous les fichiers
+    #presents dans le repertoire de travail courant
+    #et on fait un co de tous les autres
+    if(test -s "$TMPDIR"/"$$_RCS_ls")
+    then
+        set `cat  "$TMPDIR"/"$$_RCS_ls"`
+        for i in $*
+        do
+            if(test -s $i)
+            then
+               rcs -l "$RCS"/$i,v 2> /dev/null
+            else
+               co -l "$RCS"/"$i",v
+            fi
+            ci -f -r"$r" "$RCS"/"$i",v < "$log"
+        done
+    else
+        echo " On ne peut creer la nouvelle revision"
+        echo " car le repetoire $RCS est vide"
+    fi
+else
+# on injecte tous les fichiers dans le repertoire RCS specifie
+     if (test -s *.[fp]tn)
+     then echo *.[fp]tn  *[fcsh] > "$TMPDIR"/"$$_ici_lls"
+     fi
+     if (test -s *[fcsh])
+     then echo *[fcsh]  >> "$TMPDIR"/"$$_ici_lls"
+     fi
+     if(test -s *.cdk)
+     then echo *.cdk >> "$TMPDIR"/"$$_ici_lls"
+     fi
+cat "$TMPDIR"/"$$_ici_lls" | sed 's/ /\
+/g' >"$TMPDIR"/"$$_ici_ls"
+    if(test -s "$TMPDIR"/"$$_RCS_ls")
+    then
+       if(test -s "$TMPDIR"/"$$_ici_ls")
+       then
+        sort "$TMPDIR"/"$$_RCS_ls"  > "$TMPDIR"/"$$_RCS_ls2"
+        sort "$TMPDIR"/"$$_ici_ls"  > "$TMPDIR"/"$$_ici_ls2"
+        comm -23 "$TMPDIR"/"$$_RCS_ls2" "$TMPDIR"/"$$_ici_ls2" > "$TMPDIR"/"$$_dansRCS"
+        comm -23 "$TMPDIR"/"$$_ici_ls2" "$TMPDIR"/"$$_RCS_ls2" > "$TMPDIR"/"$$_dansici"
+        fi
+    fi
+
+    #on met un lock a la revision la plus recente de  tous les fichiers
+    #presents dans le repertoire de travail courant
+    if(test -f *.[fp]tn)
+    then
+        for i in *.[fp]tn
+        do
+            rcs -l "$RCS"/"$i",v 2> /dev/null
+        done
+    fi
+    if(test -f *.cdk)
+    then
+        for i in *.cdk
+        do
+            rcs -l "$RCS"/"$i",v 2> /dev/null
+        done
+    fi
+    if(test -f *.[fcsh])
+    then
+        for i in *.[fcsh]
+        do
+            rcs -l "$RCS"/"$i",v 2> /dev/null
+        done
+    fi
+
+    #on fait un check out de tous les fichiers uniquements presents dans RCS
+    if(test -s "$TMPDIR"/"$$_dansRCS")
+    then
+       set `cat "$TMPDIR"/"$$_dansRCS"`
+       for i in $*
+       do
+          co -l "$RCS"/"$i",v
+       done
+    else
+       if(test -s "$TMPDIR"/"$$_RCS_ls" -a ! -s "$TMPDIR"/"$$_ici_ls")
+       then
+          set `cat "$TMPDIR"/"$$_RCS_ls"`
+          for i in $*
+          do
+             co -l "$RCS"/"$i",v
+          done
+       fi
+    fi
+
+    if(test -f *.cdk)
+    then
+      for i in *.cdk
+      do
+        if( test -f "$RCS"/"$i",v )
+        then 
+                ci -f -r"$r" "$RCS"/"$i",v < "$log"
+        else
+                ci -f -r"$r" -t"$log" "$RCS"/"$i",v < "$log"
+        fi
+      done
+    fi
+
+    if(test -f *.[fp]tn)
+    then
+      for i in *.[fp]tn
+      do
+        if( test -f "$RCS"/"$i",v )
+        then 
+                 ci -f -r"$r" "$RCS"/"$i",v < "$log"
+        else
+                ci -f -r"$r" -t"$log" "$RCS"/"$i",v < "$log"
+        fi
+      done
+    fi
+
+    if(test -f *.[fcsh])
+    then
+      for i in *.[fcsh]
+      do
+        if( test -f "$RCS"/"$i",v )
+        then 
+                 ci -f -r"$r" "$RCS"/"$i",v < "$log"
+        else
+                ci -f -r"$r" -t"$log" "$RCS"/"$i",v  < "$log"
+        fi
+      done
+    fi
+fi
+
+/bin/rm -f $TMPDIR/*
+
+

@@ -1,0 +1,3 @@
+#!/bin/ksh
+sed 's/[.]o/.cdk90/g' <make_cdk >make_cdk+
+mv make_cdk+ make_cdk

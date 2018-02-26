@@ -1,0 +1,843 @@
+#!/bin/ksh
+
+#*************************************************************************
+# Script servant a creer un Makefile pour tous les fichiers
+# present dans l'environnement etagere ou dans tous les repertoires
+# indiques dans la variable RCSPATH
+#
+# Modification mars 1993: - extensions reconnues: .ftn, .ptn, .f, .c, .h, .cdk
+#                                                 .s
+#              avril 1995:- enlever le test de personalite multiple
+#                           (who am i | grep `whoami`) et r.isowner. Remplaces
+#                           par un appel unique a un nouveau programme
+#                           r.ucanrm qui verifie si l'usager est 
+#                           proprietaire d'un fichier et si ce fichier est en
+#                           mode ecriture.
+#                           (r.ucanrm == r.you_can_remove)
+#*****************************************************************************
+
+#**********************************************************************
+# fonction fait_des_listes sert a creer les fichers contenant les 
+# differents types de fichiers (.o, .f, .ftn, .ptn, .s, .c, .h, .cdk)
+# J. Caveen - fevrier 1993
+#**********************************************************************
+fait_des_listes()
+{
+   exten=$1
+   if(test "*.${exten}" != "`echo *.${exten}`")
+   then
+      exten1=`echo ${exten} | sed 's/,v//'`
+      ls *.${exten} | sed 's/,v//' >> $TMPDIR/$$_liste_${exten1}
+      if(test "$#" -gt "1")
+      then
+       shift
+
+       for i in $*
+       do
+          cat  $TMPDIR/$$_liste_${exten1} | sed "s/\.${exten1}/\.${i}/" >> $TMPDIR/$$_liste_${i}
+       done
+      fi
+   fi
+} 
+#**********************************************************************
+# fonction fait_les_includes cree un fichier contenant la liste
+# de tous les fichiers contenant un enonce du type #include unfic
+# cette liste, une fois triee sert d'entree a arbre qui s'en servira
+# pour dresser un arbre de dependances 'complet' des fichiers les uns
+# par rapport aux autres.
+# J. Caveen - fevrier 1993
+#**********************************************************************
+fait_les_includes()
+{
+    if(test "*.[fp]tn*" != "`echo *.[fp]tn*`")
+    then
+         echo *.[fp]tn* | grepdep -q >> $TMPDIR/$$_liste_include
+    fi
+    if(test "*.cdk*" != "`echo *.cdk*`")
+    then
+         echo *.cdk* | grepdep -q >> $TMPDIR/$$_liste_include
+    fi
+    if(test "*.[fchs]*" != "`echo *.[fchs]*`")
+    then
+         echo *.[fchs]* | grepdep -q >> $TMPDIR/$$_liste_include
+    fi
+}
+
+#***************************************************************************
+# fonction depend_liste fait la mise en page des differentes cibles
+# et composantes d'un fichier makefile
+# Les fichiers servant a creer des objets seront ecrits dans Makefile
+# et les fichiers a inclure dans make_cdk
+# James Caveen - fevrier 1993
+#***************************************************************************
+depend_liste()
+{
+awk '
+BEGIN { present = " " }
+   {
+       if($1 != present)
+       {
+           present = $1
+           ndep = 1
+           split($1,tab1,".")
+ 
+           if ((tab1[2] == "cdk") || (tab1[2] == "h"))
+           {
+              agauche=sprintf("%s%s%s%s",tab1[1],".a",tab1[2],":")
+              printf("\n%s %s ",agauche,$1) >> "l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e"
+              if(NF == 2)
+              {
+                 printf(" %s ",$2) >> "l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e"
+                 ndep++
+              }
+           } 
+           else
+           {
+              if((tab1[2] == "ptn") || (tab1[2] == "ftn"))
+              {
+                 agauche=sprintf("%s%s",tab1[1],".f:")
+                 printf("\n%s %s ",agauche,$1) >> "l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e"
+              }
+              else if ((tab1[2] == "c") || (tab1[2] == "s"))
+              {
+                 agauche=sprintf("%s%s",tab1[1],".o:")
+                 printf("\n%s %s ",agauche,$1) >> "l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e"
+              } 
+              if(NF == 2)
+              {
+                 printf(" %s ",$2) >> "l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e"
+                 ndep++
+              }
+           }
+        }
+        else
+        {
+           split($1,tab1,".")
+           if ((tab1[2] == "cdk") || (tab1[2] == "h"))
+           {
+               if(ndep == 4)
+               {
+                   printf("\\\n") >> "l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e"
+                   ndep = 0
+               }
+              printf("\t%s ",$2) >> "l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e"
+           }
+           else
+           {
+               if(ndep == 4)
+               {
+                   printf("\\\n") >> "l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e"
+                   ndep = 0
+               }
+              printf("\t%s ",$2) >> "l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e"
+           }
+
+           ndep++
+        }
+    }
+END {
+     printf("\n") >> "l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e"
+     printf("\n") >> "l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e"
+    }
+' $1
+}
+
+    
+#**********************************************************
+# fonction dressant selon un certain format les listes de *
+# fichiers necessaires au bon fonctionnement des fichiers *
+# Makefile et make_cdk  e.g:                              *
+#                                                         *
+# COMDECKS \                                              *
+#            aaa.cdk     bbb.cdk    ccc.cdk               *
+#**********************************************************
+sousliste()
+{
+titre=$1
+variete=$2
+if (test -s $TMPDIR/$$_liste_$variete)
+then
+    liste=`cat $TMPDIR/$$_liste_$variete | sort -u`
+    set $liste
+    echo ${titre}= \\
+    while [ "$5" != "" ]
+    do
+       echo '        ' $1 '     '  $2  '     ' $3  '     ' $4 \\
+       shift ; shift ; shift ; shift
+    done
+    if [ "$4" != "" ]
+    then
+       echo '        '  $1  '     ' $2  '     ' $3  '     ' $4
+    elif [ "$3" != "" ]
+    then
+       echo '        '  $1 '     '  $2  '     '  $3
+    elif [ "$2" != "" ]
+    then
+       echo '        '  $1 '     '  $2 
+    elif [ "$1" != "" ]
+    then
+       echo '        '  $1
+    fi
+    echo
+fi
+}
+#set -x
+/bin/rm -f l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e
+
+#si machine hp, mettre option -H a cpp pour eviter message 
+#d'erreur "argument line too long"
+if [ "`uname -s`" = "HP-UX" ]
+then
+        SCPPFL="-H15000"
+else
+        SCPPFL=" "
+fi
+
+
+if(test "$CMCLNG" = "francais")
+then
+eval `${CCLARGS:-cclargs} $0 "[Creer un fichier de descriptions Makefile pour make]"\
+     -f "non" "oui" "[Mettre f=f pour utiliser make_exp en dehors du\ncontexte d'etagere]"\
+      -COMPILE "compile" "compile" "[Nom a donner au fichier destine a recevoir les fichiers FORTRAN]"\
+      -DEFINE "=-DNEC=nec" "=-DNEC=nec" "[Valeur a donner a la variable DEFINE du Makefile]"\
+      -MALIB "malib.a" "malib.a" "[Nom a donner a la variable MALIB du fichier Makefile]"\
+      -quick " " "quick" "[si quick=quick, on ne fait que re-injecter les fichier\nmes_recettes et my_targets dans le Makefile]"\
+      -FFLAGS " " " " "[Liste des parametres pour f77]"\
+      -CFLAGS " " " " "[Liste des parametres pour cc]"\
+      -CPPFLAGS " " " " "[Liste des parametres pour cpp]"\
+      -ASFLAGS " " " " "[Liste des parametres pour as]"\
+    ++ $*`
+else
+eval `${CCLARGS:-cclargs} $0 "[Create a description file Makefile for make]"\
+     -f "non" "oui" "[Put f=f to use make_exp outside the etagere context]"\
+      -COMPILE "compile" "compile" "[Name of the target file for FORTRAN modules]"\
+      -DEFINE "=-DNEC=nec" "=-DNEC=nec" "[Value for the DEFINE variable of Makefile]"\
+      -MALIB "malib.a" "malib.a" "[Name for the MALIB variable of Makefile]"\
+      -quick " " "quick" "[If quick=quick, we just re-append the mes_recettes and my_targets\nfiles in Makefile]"\
+      -FFLAGS " " " " "[Parameter list for f77]"\
+      -CFLAGS " " " " "[Parameter list for cc]"\
+      -CPPFLAGS " " " " "[Parameter list for cpp]"\
+      -ASFLAGS " " " " "[Parameter list for as]"\
+    ++ $*`
+fi
+if(test "$quick" = "quick")
+then
+    cat Makefile | sed -n "1,/^#Descriptions des recettes personnelles/ p" >\
+        $TMPDIR/$$_makefile
+    cat $TMPDIR/$$_makefile > Makefile
+    echo ' ' >> Makefile
+    echo '#Descriptions des recettes personnelles' >> Makefile
+    echo ' ' >> Makefile
+    if(test -s mes_recettes)
+    then
+       cat mes_recettes >> Makefile
+    fi
+    if(test -s my_targets)
+    then
+       cat my_targets >> Makefile
+    fi
+    /bin/rm $TMPDIR/$$_makefile
+    exit
+fi
+
+if(test "$CPPFLAGS" != " " -o "$CFLAGS" != " ")
+then
+    if(test "$CMCLNG" = "francais")
+    then
+        echo 'Pour changer les valeurs de CFLAGS et CPPFLAGS, vous devez'
+        echo 'editer le fichier Makefile ou utiliser un fichier mes_recettes'
+    else
+        echo 'To modify CFLAGS and CPPFLAGS you must edit the file Makefile'
+        echo 'or use a file mes_recettes '
+    fi
+    exit
+fi
+
+ici=`pwd`
+echo ' '
+echo '*************************************************************'
+echo '*   Si un fichier mes_recettes existe dans le repertoire    *'
+echo '*   courant, il sera ajoute a la fin du fichier Makefile    *'
+echo '*                                                           *'
+echo '*   Si un fichier  .recettes existe, dans un repertoire RCS *'
+echo '*   il sera ajoute a la fin du fichier Makefile             *'
+echo '*                                                           *'
+echo '*   If a file named my_targets exists in the current        *'
+echo '*   directory, it will be added at the end of Makefile      *'
+echo '*                                                           *'
+echo '*   If a file named .recettes  exists in a RCS directory,   *'
+echo '*   it will be added at the end of the file Makefile        *'
+echo '*************************************************************'
+#verifier si le fichier ./.exper_cour existe dans le repertoire courant.
+#si oui,
+#on en extrait le RCSPATH 
+#sinon,
+# verifier si la variable d'environnement RCSPATH est initialisee
+#cii=`pwd`
+if [ "$f" = "non" ]
+then
+   if(test ! -s ${ici}/./.exper_cour)
+   then
+      if(test "$CMCLNG" = "francais")
+      then
+        echo "Le fichier ./.exper_cour est absent. On arrete!"
+        echo "Pour utiliser make_exp sans ce fichier, "
+        echo "consultez le manpage de make_exp"
+      else
+        echo "File ./.exper_cour is missing. STOP!"
+        echo "To use make_exp without this file, "
+        echo "consult the make_exp manpage"
+      fi
+      exit 1
+   fi
+. ${ici}/./.exper_cour
+   ledefaut=collectivisme
+   lexperiencebase=$RCSBASE
+   if(test -d RCS)
+     then RCSPATH="$ici/RCS: $RCSPATH"
+   fi
+elif (test "${RCSPATH:-RIEN}" = "RIEN")
+then
+   ledefaut=co  
+   if(test -d RCS)
+      then RCSPATH="$ici/RCS: "
+   fi
+else
+   ledefaut=collectivisme
+   if(test -d RCS)
+     then RCSPATH="$ici/RCS: $RCSPATH"
+   fi
+fi
+#inverser l'ordre de fouille des differents repertoires du RCSPATH
+RCSTEMP=""
+for i in $RCSPATH
+do
+   RCSTEMP="$i $RCSTEMP"
+done
+RCSPATH=$RCSTEMP
+
+#obtenir les listes de fichiers  dans la liste de repertoire
+#donnee par la variable RCSPATH
+# obtenir la  liste des #include
+#
+if(test "$CMCLNG" = "francais")
+then
+     lemessage='On fouille le repertoire'
+else
+     lemessage='Searching directory'
+fi
+echo '#Descriptions des recettes personnelles' > "$TMPDIR"/$$_recettes
+for p in $RCSPATH
+do
+     set `echo $p | sed 's/:/ /g'`
+     cd $1
+     echo $lemessage  $1
+#    Dresser les differentes listes de fichiers
+     fait_des_listes ftn,v f o
+     fait_des_listes ptn,v f o
+     fait_des_listes f,v o
+     fait_des_listes c,v o
+     fait_des_listes s,v o
+     fait_des_listes cdk,v
+     fait_des_listes h,v
+
+#    Generer le fichier contenant la liste des dependances
+     fait_les_includes
+
+     if (test -s .recettes)
+     then
+         echo " " >> "$TMPDIR"/$$_recettes
+         echo "#Descriptions du fichier $1/.recettes" >> "$TMPDIR"/$$_recettes
+         echo " " >> "$TMPDIR"/$$_recettes
+         cat .recettes >> "$TMPDIR"/$$_recettes
+     fi
+     cd $ici
+done
+
+#Dresser les differentes listes de fichiers pour le repertoire de travail
+echo $lemessage  $ici
+fait_des_listes ptn f o
+fait_des_listes ftn f o
+fait_des_listes f o
+fait_des_listes c o
+fait_des_listes s o
+fait_des_listes cdk
+fait_des_listes h
+
+if(test -s mes_recettes -o -s my_targets)
+then
+     echo " " >> "$TMPDIR"/$$_recettes
+     if(test -s mes_recettes)
+     then
+         cat mes_recettes >> "$TMPDIR"/$$_recettes
+     fi
+     if(test -s my_targets)
+     then
+         cat my_targets >> "$TMPDIR"/$$_recettes
+     fi
+fi
+#Generer le fichier contenant la liste des dependances
+fait_les_includes
+
+#on verifie s'il y a des fichiers de type .cdk et ou .h
+if(test -s $TMPDIR/$$_liste_include)
+then
+    lescdk=oui
+
+#   Production du fichier de dependances
+    cat $TMPDIR/$$_liste_include  | sort -u  > $TMPDIR/$$_liste_pour_arbre
+    arbre $TMPDIR/$$_liste_pour_arbre > $TMPDIR/$$_liste_tempor 
+fi
+if(test "$TMPDIR/$$_liste_[fp]tn" != "`echo $TMPDIR/$$_liste_[fp]tn`")
+then
+cat $TMPDIR/$$_liste_[fp]tn >> $TMPDIR/$$_liste_tempor
+fi
+sort -u $TMPDIR/$$_liste_tempor > $TMPDIR/$$_liste_triee 2> /dev/null
+depend_liste $TMPDIR/$$_liste_triee
+
+#Generer les listes de types de fichiers
+sousliste FTNDECKS ftn > $TMPDIR/$$_sousliste_Makefile
+sousliste CDECKS c >>  $TMPDIR/$$_sousliste_Makefile
+sousliste FDECKS f >> $TMPDIR/$$_sousliste_Makefile
+sousliste ASDECKS s >> $TMPDIR/$$_sousliste_Makefile
+sousliste OBJECTS o >> $TMPDIR/$$_sousliste_Makefile
+#sousliste COMDECKS cdk >> $TMPDIR/$$_sousliste_Makefile
+#sousliste HDECKS h >> $TMPDIR/$$_sousliste_Makefile
+sousliste COMDECKS cdk > $TMPDIR/$$_sousliste_make_cdk
+sousliste HDECKS h >> $TMPDIR/$$_sousliste_make_cdk
+# 
+# on inclus les comdecks et .h dans les listes pour Makefile
+cat $TMPDIR/$$_sousliste_make_cdk >> $TMPDIR/$$_sousliste_Makefile
+
+cat <<mktmplt > "$TMPDIR"/$$_tempdck
+
+.SUFFIXES : .ftn .ptn .f .c .s .o
+
+SHELL = /bin/sh
+
+CPP = /lib/cpp
+
+RMNLIB = \$(ARMNLIB)/lib/librmnx32stack.a
+
+COMPILE = $COMPILE
+
+DEFINE =  $DEFINE
+
+FFLAGS =  $FFLAGS
+
+CFLAGS = -I\$(ARMNLIB)/include
+
+CPPFLAGS = -I\$(ARMNLIB)/include
+
+ASFLAGS =  $ASFLAGS
+
+DOC =
+
+LABASE = $lexperiencebase
+
+MALIB =  $MALIB
+
+.PRECIOUS: \$(MALIB)
+.DEFAULT:
+	$ledefaut \$@
+
+default: make_menu
+
+.ptn.o:
+	rm -f \$*.f
+	r.ftntof -P \$(DEFINE) \$(DOC) \$< | sed 's/^[ ].*PROGRAM /      SUBROUTINE /' | sed 's/^[ ].*program /      subroutine /'  > \$*.f
+	\$(FC) \$(FFLAGS) -c \$*.f
+	chmod 444 \$*.f
+
+.ptn.f:
+	rm -f \$*.f
+	r.ftntof -P \$(DEFINE) \$(DOC) \$< | sed 's/^[ ].*PROGRAM /      SUBROUTINE /' | sed 's/^[ ].*program /      subroutine /'  > \$*.f
+	chmod 444 \$*.f
+
+
+.ftn.o:
+	rm -f \$*.f
+	r.ftntof -P \$(DEFINE) \$< > \$*.f
+	\$(FC) \$(FFLAGS) -c \$*.f
+	chmod 444 \$*.f
+
+.ftn.f:
+	rm -f \$*.f
+	r.ftntof -P \$(DEFINE) \$< > \$*.f
+	chmod 444 \$*.f
+
+.c.o:
+	\$(CC) -c \$(CPPFLAGS) \$(CFLAGS) \$<
+
+.s.o:
+	\$(AS) -c \$(CPPFLAGS) \$(ASFLAGS) \$<
+
+#include "$TMPDIR/$$_sousliste_Makefile"
+FICHIERS = \$(FDECKS) \$(CDECKS) \$(ASDECKS) \$(HDECKS)
+#include "l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e"
+
+make_menu:
+	\$(MAKE)	"DEFINE=\$(DEFINE)" "CPPFLAGS=\$(CPPFLAGS)" \
+        "CFLAGS=\$(CFLAGS)" "FFLAGS=\$(FFLAGS)" \
+        "ASFLAGS=\$(ASFLAGS)" "COMPILE=\$(COMPILE)" "DOC=\$(DOC)" \`fait_le_menu2\`
+
+sortirtout:
+	extrait_tout
+
+c#LISTE DES CIBLES DU FICHIER recettes
+
+obj: \$(OBJECTS) 
+c#Produire les fichiers objets (.o) pour tous les fichiers
+
+full: \$(FICHIERS)
+c#Inclure tous les fichiers .f dans le fichier \$(COMPILE)\net sortir le reste des fichiers
+	-if [ "*.f" != "\`echo *.f\`" ] ; \\
+	then \\
+	cat *.f  > \$(COMPILE) ;\\
+	fi
+
+#include "$TMPDIR/$$_cdkfor"
+
+qcompil:
+c#Inclure uniquement les fichiers .f modifies dans le\nfichier \$(COMPILE)
+	-rm \$(COMPILE)
+	-if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ;\\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	\$(MAKE) "DEFINE=\$(DEFINE)" \$\$fn.f; \\
+	done \\
+	fi ;\\
+	if [ "*.f" != "\`echo *.f\`" ] ;\\
+	then \\
+	cat *.f > \$(COMPILE) ;\\
+	fi
+
+qobj:
+c#Compiler uniquement les fichiers  modifies.
+	-if [ "*.[fcs]" != "\`echo *.[fcs]\`" ] ;\\
+	then \\
+	for i in *.[fcs]; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fcs]'\`; \\
+	\$(MAKE) "FFLAGS=\$(FFLAGS)" "CFLAGS=\$(CFLAGS)" "ASFLAGS=\$(ASFLAGS)" \$\$fn.o; \\
+	done \\
+	fi ;\\
+	if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ;\\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	\$(MAKE) "DEFINE=\$(DEFINE)" \$\$fn.o; \\
+	done \\
+	fi
+
+genlib: \$(OBJECTS)
+c#Creer une programmatheque ayant pour nom $MALIB et\nincluant TOUS les fichiers objets
+	\$(AR) rv \$(MALIB) \$(OBJECTS)
+
+majlib: objloc
+c#Mise a jour de la programmatheque $MALIB a partir de\ntous les fichers .o affectes par les dernieres modifications
+	\$(AR) rv \$(MALIB) *.o
+
+qmajlib: qobj
+c#Mise a jour de la programmatheque $MALIB a partir de\ntous les fichers .o presents dans le repertoire courant
+	\$(AR) rv \$(MALIB) *.o
+
+libexp: sortirtout objexp
+c#Mettre tous les objets de l'experience en cours dans la\nprogrammatheque $MALIB
+	\$(AR) rv \$(MALIB) *.o
+
+
+clean:
+c#Faire le grand menage. On enleve tous les fichiers sources\ninutiles et les .o 
+	-if [ "*.[chfs]" != "\`echo *.[chfs]\`" ] ; \\
+	then \
+	for i in *.[chfs]; \\
+	do \\
+	if (r.ucanrm \$\$i)  ; \\
+	then rm -f \$\$i; \\
+	fi; \\
+	done \\
+	fi; \\
+	if [ "*.cdk" != "\`echo *.cdk\`" ] ; \\
+	then \
+	for i in *.cdk; \\
+	do \\
+	if (r.ucanrm  \$\$i) ; \\
+	then rm -f \$\$i; \\
+	fi; \\
+	done \\
+	fi; \\
+	if [ "*.txt" != "\`echo *.txt\`" ] ; \\
+	then \
+	for i in *.txt; \\
+	do \\
+	if (r.ucanrm  \$\$i) ; \\
+	then rm -f \$\$i; \\
+	fi; \\
+	done \\
+	fi; \\
+	if [ "*.*_sh" != "\`echo *.*_sh\`" ] ; \\
+	then \
+	for i in *.*_sh; \\
+	do \\
+	if (r.ucanrm  \$\$i) ; \\
+	then rm -f \$\$i; \\
+	fi; \\
+	done \\
+	fi; \\
+	if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ; \\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	if (r.ucanrm \$\$i) ; \\
+	then rm -f \$\$i; \\
+	fi; \\
+	done \\
+	fi
+	rm *.o
+
+
+qclean:
+c#Faire un petit menage. On enleve tous les .o et les .f \nproduits a partir de .ftn/.ptn
+	-if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ; \\
+	then \\
+	for i in *.[fp]tn ; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	rm -f \$\$fn.f; \\
+	done \\
+	fi
+	rm *.o
+
+ 
+mktmplt
+
+if (test "$lescdk" = "oui")
+then
+   cat > $TMPDIR/$$_cdkfor << docdk1
+compil:
+c#Inclure tous les fichers affectes par les dernieres\nmodifications dans le fichier $COMPILE
+	-rm \$(COMPILE)
+	-if [ "*.cdk" != "\`echo *.cdk\`" ] ; \\
+	then \\
+	for i in *.cdk; \\
+	do \\
+	if [ -w \$\$i ] ; \\
+	then fn=\`r.basename \$\$i '.cdk'\`; \\
+	\$(MAKE) -f make_cdk \$\$fn.acdk; \\
+	fi; \\
+	done \\
+	fi; \\
+	if [ "*.h" != "\`echo *.h\`" ] ; \\
+	then \\
+	for i in *.h; \\
+	do \\
+	if [ -w \$\$i ]; \\
+	then fn=\`r.basename \$\$i '.h'\`; \\
+	\$(MAKE) -f make_cdk \$\$fn.ah; \\
+	fi; \\
+	done \\
+	fi; \\
+	if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ; \\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	\$(MAKE) "DEFINE=\$(DEFINE)" \$\$fn.f; \\
+	done \\
+	fi ; \\
+	if [ "*.f" != "\`echo *.f\`" ] ;\\
+	then \\
+	cat *.f > \$(COMPILE) ;\\
+	fi
+
+compexp: sortirtout
+c#Inclure tous les modules de l'experience en cours dans\nle fichier $COMPILE
+	-rm \$(COMPILE)
+	-if [ "*.cdk" != "\`echo *.cdk\`" ] ; \\
+	then \\
+	for i in *.cdk; \\
+	do \\
+	fn=\`r.basename \$\$i '.cdk'\`; \\
+	\$(MAKE) -f make_cdk \$\$fn.acdk; \\
+	done \\
+	fi; \\
+	if [ "*.h" != "\`echo *.h\`" ] ; \\
+	then \\
+	for i in *.h; \\
+	do \\
+	fn=\`r.basename \$\$i '.h'\`; \\
+	\$(MAKE) -f make_cdk \$\$fn.ah; \\
+	done \\
+	fi; \\
+	if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ; \\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	\$(MAKE) "DEFINE=\$(DEFINE)" "FFLAGS=\$(FFLAGS)" \$\$fn.f; \\
+	done \\
+	fi ; \\
+	if [ "*.f" != "\`echo *.f\`" ] ;\\
+	then \\
+	cat *.f > \$(COMPILE) ;\\
+	fi
+
+objloc:
+c#Produire les objets (.o) de tous les fichiers affectes\npar les dernieres modifications
+	-if [ "*.cdk" != "\`echo *.cdk\`" ] ; \\
+	then \\
+	for i in *.cdk; \\
+	do \\
+	if [ -w \$\$i ] ; \\
+	then fn=\`r.basename \$\$i '.cdk'\`; \\
+	\$(MAKE) -f make_cdk \$\$fn.acdk; \\
+	fi; \\
+	done \\
+	fi; \\
+	if [ "*.h" != "\`echo *.h\`" ] ; \\
+	then \\
+	for i in *.h; \\
+	do \\
+	if [ -w \$\$i ] ; \\
+	then fn=\`r.basename \$\$i '.h'\`; \\
+	\$(MAKE) -f make_cdk \$\$fn.ah; \\
+	fi; \\
+	done \\
+	fi; \\
+	if [ "*.[fcs]" != "\`echo *.[fcs]\`" ] ; \\
+	then \\
+	for i in *.[fcs]; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fcs]'\`; \\
+	\$(MAKE) "FFLAGS=\$(FFLAGS)" "CFLAGS=\$(CFLAGS)" "ASFLAGS=\$(ASFLAGS)" \$\$fn.o; \\
+	done \\
+	fi; \\
+	if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ; \\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	\$(MAKE) "DEFINE=\$(DEFINE)" "FFLAGS=\$(FFLAGS)" \$\$fn.o; \\
+	done \\
+	fi
+
+
+objexp: sortirtout
+c#Produire les fichiers objets de tous les modules de\nl'experience en cours
+	-if [ "*.cdk" != "\`echo *.cdk\`" ] ; \\
+	then \\
+	for i in *.cdk; \\
+	do \\
+	fn=\`r.basename \$\$i '.cdk'\`; \\
+	\$(MAKE) -f make_cdk \$\$fn.acdk; \\
+	done \\
+	fi; \\
+	if [ "*.h" != "\`echo *.h\`" ] ; \\
+	then \\
+	for i in *.h; \\
+	do \\
+	fn=\`r.basename \$\$i '.h'\`; \\
+	\$(MAKE) -f make_cdk \$\$fn.ah; \\
+	done \\
+	fi; \\
+	if [ "*.[fcs]" != "\`echo *.[fcs]\`" ] ; \\
+	then \\
+	for i in *.[fcs]; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fcs]'\`; \\
+	\$(MAKE) "FFLAGS=\$(FFLAGS)" "CFLAGS=\$(CFLAGS)" "ASFLAGS=\$(ASFLAGS)" "CPPFLAGS=\$(CPPFLAGS)" \$\$fn.o; \\
+	done \\
+	fi; \\
+	if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ; \\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	\$(MAKE) "FFLAGS=\$(FFLAGS)" "DEFINE=\$(DEFINE)"  \$\$fn.o; \\
+	done \\
+	fi
+docdk1
+else
+cat > $TMPDIR/$$_cdkfor << dodck2
+compil:
+c#Inclure tous les fichers affectes par les dernieres\nmodifications dans le fichier $COMPILE
+	-rm \$(COMPILE) 
+	-if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ; \\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	\$(MAKE) "DEFINE=\$(DEFINE)" \$\$fn.f; \\
+	done \\
+	fi ;\\
+	if [ "*.f" != "\`echo *.f\`" ] ;\\
+	then \\
+	cat *.f > \$(COMPILE) ;\\
+	fi
+
+compexp: sortirtout compil
+c#Compiler tous les modules affectes par l'experience en cours
+
+objloc:
+c#Produire les objets (.o) de tous les fichiers affectes\npar les dernieres modifications
+	-if [ "*.[fcs]" != "\`echo *.[fcs]\`" ] ; \\
+	then \\
+	for i in *.[fcs]; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fcs]'\`; \\
+	\$(MAKE) "FFLAGS=\$(FFLAGS)" "CFLAGS=\$(CFLAGS)" "ASFLAGS=\$(ASFLAGS)" "CPPFLAGS=\$(CPPFLAGS)" \$\$fn.o; \\
+	done \\
+	fi ;\\
+	if [ "*.[fp]tn" != "\`echo *.[fp]tn\`" ] ; \\
+	then \\
+	for i in *.[fp]tn; \\
+	do \\
+	fn=\`r.basename \$\$i '.[fp]tn'\`; \\
+	\$(MAKE) "FFLAGS=\$(FFLAGS)" "DEFINE=\$(DEFINE)" \$\$fn.o; \\
+	done \\
+	fi
+
+objexp: sortirtout objloc
+c#Produire les objets de tous les fichiers\nde l'experience
+dodck2
+fi
+
+/lib/cpp ${SCPPFL} -P <"$TMPDIR"/$$_tempdck |sed 's/^c#/#/' > Makefile
+
+if(test "$lescdk" = "oui")
+then
+cat <<mktmplcdk > "$TMPDIR"/$$_tempcdk
+SHELL = /bin/sh
+
+.DEFAULT:
+	$ledefaut \$@
+
+#include "$TMPDIR/$$_sousliste_make_cdk"
+#include "l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e"
+
+mktmplcdk
+ /lib/cpp ${SCPPFL} -P <"$TMPDIR"/$$_tempcdk > make_cdk
+fi
+
+if(test -s "$TMPDIR"/$$_recettes)
+then cat "$TMPDIR"/$$_recettes >> Makefile
+fi
+
+/bin/rm  "$TMPDIR"/$$_*
+/bin/rm l_i_s_t_e_m_a_k_e_c_d_k_l_i_s_t_e l_i_s_t_e_M_a_k_e_f_i_l_e_l_i_s_t_e
+if grep 'r[.]compile' Makefile 1>/dev/null 2>/dev/null
+then
+  echo '***************************************************************'
+  echo '*                                                             *'
+  echo '*   Makefile contient une ou des commandes r.compile          *'
+  echo '*   Makefile contains one or more r.compile command           *'
+  echo '*                                                             *'
+  echo '*   r.make_exp serait peut-etre plus approprie                *'
+  echo '*   r.make_exp might be a better choice                       *'
+  echo '*                                                             *'
+  echo '***************************************************************'
+fi

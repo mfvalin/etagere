@@ -1,0 +1,74 @@
+if [[ -z $MyPatches ]]
+then
+  echo MyPatches is undefined, ABORTING
+  echo "USAGE: [ ExtraOptions=-ignore_conflicts ] MyPatches=' ------ '    . patch_exp.dot"
+  exit 1
+fi
+patches_to_apply=""
+integer patch_conflicts=0
+if [[ "$ExtraOptions" = "-ignore_conflicts" ]]
+then
+  patch_conflicts=-32768
+  if [[ $0 = *make_exp* ]]
+  then
+    echo ==============================================================
+    echo
+    echo      WARNING:  PATCH CONFLICTS ARE IGNORED
+    echo
+    echo ==============================================================
+  fi
+fi
+if [[ "$ExtraOptions" = "-reset" ]]
+then
+  export RCSPATH=`for i in $RCSPATH ; do echo $i ; done | grep -v patches | xargs`
+  echo RCSPATH reset to $RCSPATH
+else
+  for full_patch_name in $MyPatches
+  do
+    model_to_patch=`echo ${full_patch_name%%/*}| tr 'a-z' 'A-Z'`
+    patch_name=`echo ${full_patch_name##*/}| tr 'A-Z' 'a-z'`
+    patches_to_apply="$patches_to_apply $patch_name"
+    model_and_version=${full_patch_name%/*}
+    version_to_patch=${model_and_version#*/}
+    extra_rcs_path=$ARMNLIB/modeles/$model_to_patch/v_$version_to_patch/patches/$patch_name
+    if [[ -d ${extra_rcs_path:-does_not_exist} ]]
+    then
+      export RCSPATH_PLUS="${RCSPATH_PLUS} ${extra_rcs_path}"
+      echo ADDED ${extra_rcs_path} to RCSPATH
+      if [[ $0 = *make_exp* ]]
+      then
+        for name_to_check in ${extra_rcs_path}/*
+        do
+          file_to_check=${name_to_check##*/}
+          file_to_check=${file_to_check%,v}
+          if [[ -f $file_to_check || -f RCS/${file_to_check},v || -f ${file_to_check},v ]]
+          then
+             echo CONFLICT FOUND FOR $file_to_check
+             patch_conflicts=patch_conflicts+1
+          fi
+        done
+      fi
+    else
+      echo patch $full_patch_name not found
+      echo ABORTING
+      exit 1
+    fi
+  done
+  export RCSPATH="${RCSPATH_PLUS} ${RCSPATH}"
+fi
+if ((patch_conflicts>0))
+then
+  echo ERROR: $patch_conflicts CONFLICTS FOUND
+  echo use ExtraOptions=-ignore_conflicts to suppress condition
+  exit 1
+fi
+if [[ $0 = *make_exp* ]]
+then
+  rm -f .mes_recettes.nopatch
+  grep -v 'PATCH[ ]*=' mes_recettes > .mes_recettes.nopatch
+  cp .mes_recettes.nopatch mes_recettes
+  echo "PATCH=$patches_to_apply" >>mes_recettes
+  echo "fichier mes_recettes modifie          / file mes_recettes modified"
+  echo "sauvegarde dans .mes_recettes.nopatch / backup in .mes_recettes.nopatch"
+fi
+unset model_to_patch patch_name full_patch_name model_and_version version_to_patch RCSPATH_PLUS patches_to_apply file_to_check name_to_check patch_conflicts

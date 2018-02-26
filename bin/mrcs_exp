@@ -1,0 +1,37 @@
+#!/bin/ksh
+#  modifier la valeur de RCSPATH dans le fichier ./.exper_cour
+#  James Caveen , decembre 1991
+#
+#  Revision - avril 1995 - j. caveen - remplace toute la recuperation
+#                          avec cclargs et la reconstruction du chemin
+#                          par un appel a l'editeur prefere de l'usager.
+#
+EDITEUR=${EDITOR:-vi}
+if [ "$EDITEUR" = "emacs" ]
+then
+        EDITEUR="emacs -nw"
+fi
+echo '************************************************************'
+if [ "$CMCLNG" = "francais" ]
+then
+        echo 'Edition du fichier ./.exper_cour avec ' ${EDITEUR}
+else
+        echo 'Editing  file ./.exper_cour using ' ${EDITEUR}
+fi
+echo '************************************************************'
+sleep 2
+
+${EDITEUR} ././.exper_cour
+
+# verifier la presence de modules multiples
+
+mdm_exp
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,56 @@
+#!/bin/ksh
+################################################################
+# script servant a obtenir les numeros de revision d'un module
+# dans le RCS de travail et dans les RCS maitres
+#  James Caveen - RPN - mars 1992
+################################################################
+
+if(test "$#" = "0")
+then
+    echo 'usage:'
+    echo '      rev_exp module '
+    exit 1
+fi
+module=$1
+module="$module",v
+
+#verifier s'il y a une experience en cours
+if(test ! -s ./.exper_cour)
+then
+   if(test "$CMCLNG" = "francais")
+   then
+      echo "Il n'y a pas d'experience en cours. On arrete!"
+   else
+      echo " There is no active experiment. Stop!"
+   fi
+   exit 1
+fi
+#initialiser l'environnement
+. ./.exper_cour
+RCSPATH="RCS $RCSPATH"
+
+if(test "$CMCLNG" = "francais")
+then
+   messag='Revisions pour le repertoire: '
+else
+   messag='Revisons for directory:  '
+fi
+
+for p in $RCSPATH
+do
+    set `echo "$p" | sed 's/:/ /'`
+    if(test -s $1/$module)
+    then
+       echo ' ' >> $TMPDIR/$$_voir_dir
+       echo ' ' >> $TMPDIR/$$_voir_dir
+       echo '**** '$messag $1 >> $TMPDIR/$$_voir_dir
+       echo ' ' >> $TMPDIR/$$_voir_dir
+       rlog $1/$module >> $TMPDIR/$$_voir_dir
+    fi
+done   
+
+if (test -s $TMPDIR/$$_voir_dir)
+then
+   cat $TMPDIR/$$_voir_dir | more
+   rm -f $TMPDIR/$$_voir_dir
+fi

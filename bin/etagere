@@ -1,0 +1,136 @@
+#!/bin/ksh
+
+#####################################################################
+# script servant a produire sur le fichier de sortie normal
+# la liste des modules composant le progiciel etagere
+#
+#  james caveen, avril 1992
+#####################################################################
+echo using $TMPDIR/$$_etagere
+if [[ "$CMCLNG" = "francais" ]]
+then
+   cat << FRANCAIS > $TMPDIR/$$_etagere
+
+LISTE DES MODULES COMPOSANT LE PROGICIEL ETAGERE
+
+
+NOM               DESCRIPTION
+
+
+clt_exp           Obtenir une copie d'un fichier pour lecture
+                  seulement.
+
+cltr_exp          Obtenir une copie d'un fichier, a un numero de
+                  revision donne, pour lecture seulement.
+
+dir_exp           Obtenir a l'ecran le contenu des differents
+                  repertoires RCS maitres.
+
+eff_exp           Effacer une experience dans le repertoire RCS
+                  de travail.
+
+frm_exp           Fermer une experience et la sauvegarder dans le
+                  repertoire RCS de travail.
+
+grep_exp          Chercher une expression reguliere dans tous les
+                  fichiers de tous les repertoires du RCSPATH.
+
+hst_exp           Obtenir l'historique de toutes les experiences 
+                  sauvegardees dans le repertoire RCS de travail.
+
+make_exp          Obtenir un Makefile pour l'experience en cours.
+
+mdm_exp           Verifier la presence de modules ayant le meme nom
+                  dans differents repertoires RCS maitres.
+
+menu_exp          Point d'entree general permettant d'appeler tous
+                  les autres modules d'etagere.
+
+mrcs_exp          Modifier la valeur de la variable RCSPATH.
+
+omd_exp           Obtenir une copie de travail d'un fichier.
+
+omdr_exp          Obtenir une copie de travail, a un numero de revision
+                  donne, d'un fichier.
+
+ouv_exp           Initialiser l'environnement pour etagere et ouvrir 
+                  une experience.
+
+qui_exp           Quitter une experience sans faire de sauvegardes dans
+                  le repertoire RCS de travail.
+
+rev_exp           Obtenir la liste des revisions pour un fichier d'un 
+                  repertoire RCS maitre.
+                 
+smod_exp          Extraire du repertoire RCS de travail, tous les fichiers
+                  dont le contenu a ete modifie par rapport a une experience
+                  de reference
+
+sor_exp           Extraire du repertoire RCS de travail, tous les fichiers
+                  faisant partie d'une experience donnee.
+
+FRANCAIS
+else
+   cat << ANGLAIS > $TMPDIR/$$_etagere
+
+LIST OF ETAGERE MODULES
+
+
+NAME              DESCRIPTION
+
+
+clt_exp           Obtain a read-only copy of a file from one
+                  of the RCS directories
+
+cltr_exp          Obtain a read-only copy, at a given revision level,
+                  of a file from one of the RCS directories.
+
+dir_exp           Obtain an "ls" of all the master RCS directories.
+                  
+eff_exp           Erease an experiment from the working RCS directory.
+
+frm_exp           Close the current experiment and save the results
+                  in the working RCS directory.
+
+grep_exp          Search for a regular expression in all the files of 
+                  all the directories of the RCSPATH.
+
+hst_exp           Obtain the history of all the experiments saved
+                  in the working RCS directory.
+
+make_exp          Obtain a Makefile for the current experiment.
+
+mdm_exp           Check for different files with the same name in
+                  different master RCS directories.
+
+menu_exp          General entry point from where all etagere modules
+                  are callable.
+
+mrcs_exp          Modify the value of the RCSPATH variable. 
+
+omd_exp           Obtain a working copy of a file from a RCS directory.
+
+omdr_exp          Obtain a working copy, at a given revision level, of
+                  a file from a RCS directory.
+
+ouv_exp           Initialize the etagere environment and open an 
+                  experiment.
+
+qui_exp           Quit the current experiment without saving it in the
+                  working RCS directory.
+
+rev_exp           Obtain a list of all the revisions for a file in a 
+                  master RCS directory.
+
+smod_exp          Extract from the working RCS directory all the files 
+                  whose content is different from that of a reference 
+                  experiment.
+
+sor_exp           Extract from the working RCS directory all the files
+                  associated with a given experiment.
+                 
+ANGLAIS
+fi
+
+more $TMPDIR/$$_etagere
+/bin/rm $TMPDIR/$$_etagere

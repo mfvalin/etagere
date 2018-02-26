@@ -1,0 +1,299 @@
+#!/bin/ksh
+#############################################################
+# script servant a fermer l'experience presentement en cours.
+# on sauve toutes les modifications des fichiers obtenus
+# via omd_exp et on met l'historique a jour.
+# Auteur: James Caveen - decembre 1991
+#
+#Modification - avril 1995 - enleve la passe-passe de verification
+#                            de conflict de personalite (whoami | who am i ..)
+#                            et elimine r.isowner dans la section menage.
+#                            On utilise plutot r.ucanrm pour verifier si
+#                            l'usager a le droit d'effacer un fichier
+#                            On fait ce meme test sur le fichier
+#                            RCS/./.exper_cour,v pour voir si l'usager
+#                            a le droit de fermer une experience
+#                            dans le repertoire courant.
+#                         -  Modifie le repertoire de sauvegarde de RCS/.RCS
+#                            a TMPDIR/nom_experience_$$
+#                            Ce repertoire n'est pas efface par frm_exp
+#                         -  Demenage code verifiant si le log vient d'un 
+#                            fichier avant tout le code faisant le menage et
+#                            les co.==> plus de menage a faire en cas d'erreur
+#               decembre 2000 - ajout f90 cdk90 et autres extensions specifiees
+#				par $RCSEXT_SAVED
+#############################################################
+. ./.exper_cour
+
+#On verifie si l'usager a le droit d'ecrire dans le repertoire RCS
+
+if(r.ucanrm RCS/./.exper_cour,v)
+then
+        if(test  "$CMCLNG" = "francais")
+        then
+                echo ' Fermeture ' 
+        else
+                echo ' Closing '
+        fi
+else        
+        if(test  "$CMCLNG" = "francais")
+        then
+                echo ' Pas proprietaire des fichiers du  repertoire RCS'
+        else
+                echo ' Not owner of files in RCS directory'
+        fi
+        exit 1
+fi
+              
+retourgrep=0
+until (test "$retourgrep" != "0")
+do
+    if (test "$CMCLNG" = "francais")
+    then
+        echo "Donnez le nom de l'experience:
+\c"
+    read experience
+    grep -i "$experience": RCS/histoire,v > /dev/null
+    retourgrep=$?
+    if(test "$retourgrep" = "0")
+    then 
+         echo Nom $experience deja utilise
+    fi
+else
+    echo "Give the name of the experiment:
+\c"
+read experience
+grep -i "$experience": RCS/histoire,v > /dev/null
+retourgrep=$?
+if(test "$retourgrep" = "0")
+then 
+     echo Name $experience is already used
+fi
+fi
+done
+#
+#  S'assurer que le nom de l'experience est valide
+#
+echo ${experience} | grep '\.' > /dev/null
+retourgrep1=$?
+echo ${experience}| grep '^[0-9].*' > /dev/null
+retourgrep2=$?
+if(test "$retourgrep1" = "0" -o  "$retourgrep2" = "0")
+then 
+   if (test "$CMCLNG" = "francais")
+   then
+     echo "Le nom ${experience} n'est pas valable"
+     echo "Consulter le manpage sur frm_exp !"
+   else
+     echo "Name $experience is invalide"
+     echo "Consult the frm_exp manpage !"
+   fi
+   exit 1
+fi
+
+echo $experience > "$TMPDIR"/$$_login_message
+if (test "$CMCLNG" = "francais")
+then
+    echo "Entrez un message de revision (terminez avec CTL-D seul sur une ligne)
+\c"
+    cat  >> "$TMPDIR"/$$_login_message1
+
+    echo ' '
+    echo '*************************************************************'
+    echo '*************************************************************'
+    echo '*  Le contenu du repertoire courant est copie dans TMPDIR   *'
+    echo '*  Vous pourrez y recuperer vos fichiers en cas de probleme *'
+    echo '*************************************************************'
+    echo '*************************************************************'
+    echo '*  Repertoire de sauvegarde:  ' ${TMPDIR}/${experience}_$$
+    echo ' '
+    sleep 5
+else
+    echo "Give a revision message (end with single CTL-D on a line)
+\c"
+    cat  >> "$TMPDIR"/$$_login_message1
+
+    echo ' '
+    echo '**************************************************************'
+    echo '**************************************************************'
+    echo '*  The files of the current directory are copied to TMPDIR   *'
+    echo '*  You can recover them there if a problem occurs            *' 
+    echo '**************************************************************'
+    echo '**************************************************************'
+    echo '*  Backup directory:  ' ${TMPDIR}/${experience}_$$
+    echo ' '
+    sleep 5
+fi
+
+# verifier si le message ne provient pas d'un fichier de l'usager
+# i.e., il a redirige le fichier d'entree standard
+
+grep '^[ ]*<' "$TMPDIR"/$$_login_message1 > /dev/null
+retour_grep=$?
+if(test "$retour_grep" = "0")
+then
+     lefichier=`cat  "$TMPDIR"/$$_login_message1 | sed 's/^[ ]*<[ ]*//'`
+     if(test ! -s $lefichier)
+     then
+         echo '\n\n**********************************************'
+         if(test "$CMCLNG" = "francais")
+         then
+             echo ' ERREUR - On ne peut trouver le ficher ' $lefichier
+
+         else
+              echo ' ERROR - Cannot find file ' $lefichier
+         fi
+         echo '\n\n**********************************************'
+         /bin/rm ${TMPDIR}/$$_*
+         exit 1
+     else
+          cat $lefichier >>  "$TMPDIR"/$$_login_message
+     fi
+else
+     cat  "$TMPDIR"/$$_login_message1 >>  "$TMPDIR"/$$_login_message
+fi
+co -l -r"$RCSBASE" histoire
+
+suffixes="cdk [fp]tn [fcsh] txt sh dot cdk90 f90 ftn90 $RCSEXT_SAVED" 
+echo $suffixes
+#faire le menage
+
+for suf in ${suffixes} ; do
+  echo *.${suf}
+  if (test "*.${suf}" != "`echo *.${suf}`")
+  then
+    for i in *.${suf}
+    do
+	echo $i
+      if  (r.ucanrm $i)
+      then
+         rm -f $i
+      fi
+    done
+  fi
+
+done
+
+
+# Copier tout le repertoire dans le repertoire de sauvegarde
+
+  mkdir ${TMPDIR}/${experience}_$$
+for suf in ${suffixes} ; do
+  cp *.${suf} ${TMPDIR}/${experience}_$$
+done
+  cp ./.exper_cour ${TMPDIR}/${experience}_$$
+#obtenir la liste de tous les fichiers presents dans le repertoire RCS
+#et absent dans le repertoire de travail
+#et de tous les fichiers presents ICI et absent dans RCS (on a obtenu ces
+# fichiers autrement que par omd_exp 
+
+
+ICI=`pwd`
+cd RCS
+
+echo > "$TMPDIR"/"$$_RCS_ls"
+for suf in ${suffixes}; do
+ ls *.${suf},v | sed 's/,v//g' >> "$TMPDIR"/"$$_RCS_ls"
+done
+for suf in ${suffixes}; do
+ ls *.${suf} | sed 's/,v//g' >> "$TMPDIR"/"$$_RCS_ls"
+done
+
+cd $ICI
+
+echo > "$TMPDIR"/"$$_ICI_ls"
+for suf in ${suffixes}; do
+ ls *.${suf} >> "$TMPDIR"/"$$_ICI_ls"
+done
+
+if(test -s "$TMPDIR"/"$$_RCS_ls")
+then
+   if(test -s "$TMPDIR"/"$$_ICI_ls")
+   then
+    sort "$TMPDIR"/"$$_RCS_ls"  > "$TMPDIR"/"$$_RCS_ls2"
+    sort "$TMPDIR"/"$$_ICI_ls"  > "$TMPDIR"/"$$_ICI_ls2"
+    comm -23 "$TMPDIR"/"$$_RCS_ls2" "$TMPDIR"/"$$_ICI_ls2" > "$TMPDIR"/"$$_dansRCS"
+    comm -23 "$TMPDIR"/"$$_ICI_ls2" "$TMPDIR"/"$$_RCS_ls2" > "$TMPDIR"/"$$_dansICI"
+    fi
+fi
+
+#on cree les versions anterieures des fichiers qui ne sont que dans
+# le  repertoire courant
+if(test -s "$TMPDIR"/"$$_dansICI")
+then
+     set `cat "$TMPDIR"/"$$_dansICI"`
+     for i in $*
+     do
+       cp RCS/histoire,v RCS/"$i",v
+     done
+
+else
+     if (test -s "$TMPDIR"/"$$_ICI_ls" -a ! -s "$TMPDIR"/"$$_RCS_ls")
+     then
+        set `cat "$TMPDIR"/"$$_ICI_ls"`
+        for i in $*
+        do
+          cp RCS/histoire,v RCS/"$i",v
+        done
+     fi
+fi
+
+#on met un lock a la revision de base a tous les fichiers
+#presents dans le repertoire de travail courant
+for i in ${suffixes}
+do
+  ligne_fich="${ligne_fich} *.$i"
+done
+
+for i in ${ligne_fich}
+do
+	echo $i lock
+	rcs -l"$RCSBASE" $i
+done
+
+#on fait un check out de tous les fichiers uniquements presents dans RCS
+if(test -s "$TMPDIR"/"$$_dansRCS")
+then
+   set `cat "$TMPDIR"/"$$_dansRCS"`
+   for i in $*
+   do
+      co -r"$RCSBASE" -l $i
+   done
+else
+   if(test -s "$TMPDIR"/"$$_RCS_ls" -a ! -s "$TMPDIR"/"$$_ICI_ls")
+   then
+      set `cat "$TMPDIR"/"$$_RCS_ls"`
+      for i in $*
+      do
+         co -r"$RCSBASE" -l $i
+      done
+   fi
+fi
+
+for suf in ${suffixes} ; do
+if(test "*.${suf}" != "`echo *.${suf}`")
+then
+  for i in *.${suf}
+  do
+	echo $i check-in
+     ci -f -n"$experience" "$i" < "$TMPDIR"/$$_login_message
+  done
+fi
+done
+
+if [ -f Recettes ]
+then
+ ci -f -n"$experience" Recettes < "$TMPDIR"/$$_login_message
+fi
+
+rcs -l"$RCSBASE" ./.exper_cour
+cat << DEF > ./.exper_cour
+RCSPATH="$RCSPATH"
+RCSBASE="$experience"
+RCSEXT_SAVED="$RCSEXT_SAVED"
+DEF
+       ci -f -n"$experience" histoire < "$TMPDIR"/$$_login_message
+       ci -f -n"$experience" ./.exper_cour < "$TMPDIR"/$$_login_message
+/bin/rm  ${TMPDIR}/$$_*
+
+

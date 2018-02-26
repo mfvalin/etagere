@@ -1,0 +1,46 @@
+#!/bin/ksh
+#####################################################
+#
+#  Afficher le contenu des differents repertoires
+#  RCS maitres un ecran a la fois
+#
+#  James Caveen - RPN - fevrier 1992
+#####################################################
+
+#verifier s'il y a une experience en cours
+if(test ! -s ./.exper_cour)
+then
+   if(test "$CMCLNG" = "francais")
+   then
+      echo "Il n'y a pas d'experience en cours. On arrete!"
+   else
+      echo " There is no active experiment. Stop!"
+   fi
+   exit 1
+fi
+#initialiser l'environnement
+. ./.exper_cour
+
+ici=`pwd`
+
+if(test "$CMCLNG" = "francais")
+then
+   messag='Contenu du repertoire: '
+else
+   messag='Content of directory:  '
+fi
+for p in $RCSPATH
+do
+    set `echo "$p" | sed 's/:/ /'`
+    cd $1
+    echo ' ' >> $TMPDIR/$$_voir_dir
+    echo ' ' >> $TMPDIR/$$_voir_dir
+    echo '**** '$messag $1 >> $TMPDIR/$$_voir_dir
+    echo ' ' >> $TMPDIR/$$_voir_dir
+    ls -C | sed 's/,v//g' >> $TMPDIR/$$_voir_dir
+    cd $ici
+done   
+
+cd $ici
+ 
+cat $TMPDIR/$$_voir_dir | more

@@ -1,0 +1,53 @@
+#!/bin/ksh
+# Script r.compare: utilise refuse pour comparer des fichiers de code dans le contexte
+# d'etagere
+# Luc Corbeil, 5 juillet 2001
+#
+
+if(test "$CMCLNG" = "francais")
+then
+eval `${CCLARGS:-cclargs} $0 "[Recuperer tous les fichiers de tous les repertoires mentionnes\nafin de fusionner toutes les modifications faites]" \
+      -v1 ",,,," ",,,," "[Chemin du repertoire de travail ou se trouvent les versions numero 1]"\
+      -v2 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 2]"\
+      -v3 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 3]"\
+      -v4 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 4]"\
+      -v5 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 5]"\
+      -v6 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 6]"\
+      -v7 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 7]"\
+      -v8 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 8]"\
+      -strip "non" "oui" "[strip=oui pour eliminer les lignes vides et les ligne\nne contenant qu'un C,c ou * en debut de ligne]" \
+       ++ $*`
+else
+eval `${CCLARGS:-cclargs} $0 "[Fetch and merge all versions of all files found in the given directories]" \
+   -v1 ",,,," ",,,," "[Path of the directory containing all versions number 1]"\
+   -v2 "" "" "[Path of the directory containing all versions number 2]"\
+   -v3 "" "" "[Path of the directory containing all versions number 3]"\
+   -v4 "" "" "[Path of the directory containing all versions number 4]"\
+   -v5 "" "" "[Path of the directory containing all versions number 5]"\
+   -v6 "" "" "[Path of the directory containing all versions number 6]"\
+   -v7 "" "" "[Path of the directory containing all versions number 7]"\
+   -v8 "" "" "[Path of the directory containing all versions number 8]"\
+   -strip "non" "oui" "[strip=oui to remove empty lines and lines containing\nonly a C, c or * in the first column]" \
+   ++ $*`
+fi
+ici=`pwd`
+tempo=.tmp_compare_$$
+mkdir $tempo
+
+set -A rep  $v1 $v2 $v3 $v4 $v5 $v6 $v7 $v8
+
+for i in ${rep[@]}
+do
+  cd $i
+  ls -1 >> $ici/$tempo/liste_fichiers
+done
+
+cd $ici/$tempo
+sort -u liste_fichiers > liste_fichiers2
+cltpp_exp `cat liste_fichiers2`
+rm liste_fichiers liste_fichiers2
+cd $ici
+
+refuse_beta -v1 $tempo -v2 $v1 -v3 $v2 -v4 $v3 -v5 $v4 -v6 $v5 -v7 $v6 -v8 $v7 -v9 $v8
+
+rm -rf  $tempo 

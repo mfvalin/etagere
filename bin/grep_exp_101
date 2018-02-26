@@ -1,0 +1,70 @@
+#!/bin/ksh
+#####################################################
+#
+#  Chercher une expression reguliere dans tous les
+#  fichiers de tous les repertoires RCS maitres
+#
+#  On ecrit le resultat dans le fichier grep.exp par defaut
+#
+#  James Caveen - RPN - avril 1992
+#####################################################
+
+#verifier s'il y a une experience en cours
+if(test ! -s ./.exper_cour)
+then
+   if(test "$CMCLNG" = "francais")
+   then
+      echo "Il n'y a pas d'experience en cours. On arrete!"
+   else
+      echo " There is no active experiment. Stop!"
+   fi
+   exit 1
+fi
+
+if (test "$#" = "0" -o "$1" = "-h")
+then
+    echo ' usage :'
+    echo ' grep_exp expression [-f file]'
+    exit 1
+else
+    expression="$1"
+fi
+if(test "$CMCLNG" = "francais")
+then
+   eval `${CCLARGS:-cclargs} $0 "[Chercher une expression reguliere\ndans tous les fichiers]"\
+         -f "grep.exp" "grep.exp" "[Fichier ou on ecrit le resultat]"\
+         ++ $*`
+   message=' On fouille le repertoire: '
+   resultat=' Voir le resultat dans le fichier '
+else
+   eval `${CCLARGS:-cclargs} $0 "[Search for a regular expression\nin all files]"\
+         -f "grep.exp" "grep.exp" "[Output file]"\
+         ++ $*`
+   message=' Searching in directory: '
+   resultat=' See results in file '
+fi
+
+#initialiser l'environnement
+. ./.exper_cour
+
+if(test -s "$f")
+then
+     /bin/rm $f
+fi
+
+ici=`pwd`
+
+for p in $RCSPATH .
+do
+    set `echo "$p" | sed 's/:/ /'`
+    cd $1
+    echo $message $1
+    echo ' ' >> $ici/$f
+    echo $message $1 >> $ici/$f
+    echo ' ' >> $ici/$f
+    grep -i "$expression" !($f) >> $ici/$f
+    cd $ici
+done   
+
+cd $ici
+echo $resultat $f

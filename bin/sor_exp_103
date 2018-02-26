@@ -1,0 +1,109 @@
+#!/bin/ksh
+###############################################################
+#                                                             #
+#  script servant a sortir du repertoire RCS local            #
+#  tous les fichiers associes a une experience                #
+#                                                             #
+#  james caveen - rpn - fevrier 1992                          #
+#                                                             #
+###############################################################
+
+if(test -s ./.exper_cour)
+then
+    . ./.exper_cour
+    if(test "$CMCLNG" = "francais")
+    then
+      echo "il y a deja une experience en cours. On continue? (o/n)
+\c"
+      read reponse
+    else
+      echo "there is already an active experiment. Continue? (y/n)
+\c"
+      read reponse
+    fi
+  
+    case $reponse in
+         N*) exit 1;;
+         n*) exit 1;;
+    esac
+fi
+    
+
+if (test "$#" = "0")
+then
+    if(test "$CMCLNG" = "francais")
+    then
+       echo "s.v.p. donnez le nom de l'experience a extraire"
+       echo ' sor_exp nom_experience'
+    else
+       echo "please, give the name of the experiment to extract"
+       echo ' sor_exp name_of_experiment'
+    fi
+    exit 1
+fi
+
+exper=$1
+#verifier si la revision  de ./.exper_cour existe pour l'experience a extraire
+rlog -r"$exper" ./.exper_cour > /dev/null
+retour=$?
+if(test "$retour" = "1")
+   then
+    if(test "$CMCLNG" = "francais")
+    then
+      echo " Erreur - on ne peut extraire l'experience"
+      echo " Consultez le manpage de sor_exp"
+    else
+      echo " Error  - cannot extract the experiment"
+      echo " Consult the sor_exp manpage "
+    fi
+exit 1
+fi 
+
+ici=`pwd`
+
+if(test -s ./.exper_cour) then
+	. ./.exper_cour
+else
+	co -r"$exper" ./.exper_cour 1>/dev/null 2>/dev/null
+	if(test -s ./.exper_cour) then
+		. ./.exper_cour 2>/dev/null
+		rm -f ./.exper_cour 2>/dev/null
+	fi
+fi
+
+suffixes="cdk [fp]tn [fcsh] f90 txt sh dot cdk90 ftn90 $RCSEXT_SAVED"
+
+export TEMPFILE=$TMPDIR/filter$$.sh
+rm -f ${TEMPFILE}
+
+#
+# create special entry processing script
+# ignore null arguments
+# get rid of directory path, then ,v extension
+# check out at proper revision level
+# if target is *.sh, make it executable
+# get rid of empty files
+#
+cat <<EOT  >${TEMPFILE}
+#!/bin/ksh
+   if [[ ! -r \${1} ]] ; then exit 0 ; fi
+   target=\${1##*/}
+   target=\${target%,v}
+   co -r${exper} \$target
+   if(test -s \$target)
+   then
+     chmod u+w \$target
+     if [[ \$target = *.sh ]]
+       then
+       chmod u+x \$target
+     fi
+   else
+     rm -f \$target 2> /dev/null
+   fi
+EOT
+chmod 755 ${TEMPFILE}
+
+for suf in $suffixes; do
+   find `true_path RCS` -name "*.${suf},v" | xargs -l1 ${TEMPFILE}
+done
+rm -f  ${TEMPFILE}

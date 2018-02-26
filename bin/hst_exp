@@ -1,0 +1,12 @@
+#!/bin/ksh
+##############################################################
+# script servant a obtenir l'historique de toutes les
+# experiences faites a ce jour dans le repertoire courant
+# Le script affiche a l'ecran le "log message" de chaque experience
+# Auteur: James Caveen - decembre 1991
+##############################################################
+rlog histoire > "$TMPDIR"/"$$_rlog"
+rlog -h histoire > "$TMPDIR"/"$$_rlogh"
+
+comm -23 "$TMPDIR"/"$$_rlog"  "$TMPDIR"/"$$_rlogh" | sed 's/lines added\/del:.*//' | more
+rm "$TMPDIR"/$$_*

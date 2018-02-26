@@ -1,0 +1,94 @@
+#!/bin/ksh
+################################################################
+# script servant a obtenir une copie des modules sur lesquels
+# on desire travailler lors d'une experience
+#
+# Version pour travailler un etage en dessous du repertoire du
+# RCS (on utilise ../RCS et .././.exper_cour (necessaire pour
+# r.compare, L. Corbeil, 5 juillet 2001)
+################################################################
+fetch_module ()
+{
+     module=$1
+     if(test "$CMCLNG" = "francais")
+     then
+         messag1='extraction de la version '
+         messag2=' du module '
+         messag3='du repertoire '
+     else
+         messag1='extraction of version '
+         messag2='of module '
+         messag3='from directory '
+     fi
+     for p in $RCSPATH
+     do
+        set `echo "$p" | sed 's/:/ /'`
+        co -r"$2" "$1"/"$module",v  2> /dev/null
+        if(test -s "$module")
+        then
+          echo "$messag1" "$2" "$messag2" "$module" 
+          echo "$messag3" "$1"
+          return
+        fi
+     done
+if(test ! -s "$module")
+then
+  if (test "$CMCLNG" = "francais")
+  then
+     echo la version "$2" du module "$module" est manquante
+  else
+     echo Version "$2" for module "$module" is missing
+  fi
+fi
+}
+
+if(test "$#" = "0")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+        echo 'usage:'
+        echo 'clt_exp fichier ...'
+     else
+      echo 'usage:'
+      echo 'clt_exp file ...'
+     fi
+     exit 1
+fi
+modules=$*
+ici=`pwd`
+. .././.exper_cour
+
+for i in $modules
+do
+     if(test -s "$i")
+     then
+       if(test "$CMCLNG" = "francais")
+       then
+          echo "Il existe deja une version de $i on la remplace ? (n/o)
+\c"
+          read reponse
+       else
+          echo "There is already a version of $i we overwrite ? (n/y)
+\c"
+          read reponse
+       fi
+
+       case $reponse in
+          N*) continue;;
+          n*) continue;;
+       esac
+
+     fi
+          
+     rm -f "$i"
+     if(test -s ../RCS/"$i",v)
+     then
+         co -r"$RCSBASE" "$i" 2> /dev/null
+     fi
+
+     if(test ! -s "$i")
+     then
+        rm -f "$i"
+        fetch_module $i
+     fi
+done

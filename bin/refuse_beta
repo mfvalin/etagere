@@ -1,0 +1,326 @@
+
+poly_parent()
+{
+#creation d'un fichier parent de plusieurs variations sur un theme.
+#le fichier parent cree ne contient que les lignes communes
+#a tous les fichiers de variations
+#James Caveen, decembre 1991
+
+lediff=diff
+
+if cmp $1 $2
+  then touch "$TMPDIR"/$$_diffusion
+  else $lediff -Dfusion $1 $2 | sed '/#ifndef[ ].fusion/,/#endif[ ].fusion/ s/.//g' > "$TMPDIR"/$$_diffusion
+fi
+
+shift
+shift
+for i in $*
+do
+   $lediff -Dfusion "$TMPDIR"/$$_diffusion $i |\
+      sed '/#ifndef[ ].fusion/,/#endif[ ].fusion/ s/.//g' > "$TMPDIR"/$$_diffusion2
+   mv "$TMPDIR"/$$_diffusion2 "$TMPDIR"/$$_diffusion
+done
+}
+
+ 
+poly_vers()
+{
+#fusion de plusieurs variantes sur un theme
+# premier argument = nom du module
+# les autres arguments sont les variantes
+# la version parent se trouve dans $TMPDIR/$$_diffusion
+#et a ete creee par la fonction poly_parent
+#James Caveen, decembre 1991
+
+nom=$1
+nvar=`expr $# - 1`
+shift
+variantes="$*"
+for i in $*
+do
+   cp $i "$TMPDIR"/$$_$i
+done
+
+cd $TMPDIR
+touch $$-login
+#faire un ci de parent
+mv $$_diffusion $$_"$nom"_o
+ci -r1.0 $$_"$nom"_o < $$-login 1> /dev/null  2> /dev/null
+number1=1
+total=1.0
+for i in $*
+do
+   cp $$_$i $$_"$nom"_o
+   ci -r1.0.$number1.1 $$_"$nom"_o < $$-login 1> /dev/null  2> /dev/null
+   total=$total:1.0.$number1.1
+   number1=`expr $number1 + 1`
+done
+
+#faire un co de la fusion
+
+echo "\n" >> $ici/confusion
+echo '******************************************************' >> $ici/confusion
+if(test "$CMCLNG" = "francais")
+then
+echo FUSION DES $nvar VARIANTES DE  $nom >> $ici/confusion
+else
+echo MERGING THE $nvar VERSIONS OF $nom >> $ici/confusion
+fi
+echo $* >> $ici/confusion
+echo "\n" >> $ici/confusion
+co -l -j$total $$_"$nom"_o 2>>  $$_co_resultat
+grep 'Warning' $$_co_resultat >> $ici/confusion
+echo '******************************************************' >> $ici/confusion
+
+#remplacement des numeros de revisions par le nom du module suivi de la version
+number1=1
+for i in $*
+do
+   cat $$_"$nom"_o | sed "s/1.0.$number1.1/$i/g" > $$_sed_"$nom"
+   mv $$_sed_"$nom" $$_"$nom"_o
+   number1=`expr $number1 + 1`
+done
+
+chmod 644 $$*
+cp $$_"$nom"_o $ici/"$nom"
+rm $$*
+cd $ici
+}
+
+
+# recuperer toutes les versions de tous les fichiers
+# sur lesquels on a travaille.
+# si plus d'une version existe, rapaille fait la fusion des fichiers
+# sinon, on ne fait qu'obtenir une copie du fichier trouve
+
+if(test "$CMCLNG" = "francais")
+then
+eval `${CCLARGS:-cclargs} $0 "[Recuperer tous les fichiers de tous les repertoires mentionnes\nafin de fusionner toutes les modifications faites]" \
+      -v1 ",,,," ",,,," "[Chemin du repertoire de travail ou se trouvent les versions numero 1]"\
+      -v2 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 2]"\
+      -v3 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 3]"\
+      -v4 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 4]"\
+      -v5 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 5]"\
+      -v6 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 6]"\
+      -v7 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 7]"\
+      -v8 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 8]"\
+      -v9 "" "" "[Chemin du repertoire de travail ou se trouvent les versions numero 9]" \
+      -strip "non" "oui" "[strip=oui pour eliminer les lignes vides et les ligne\nne contenant qu'un C,c ou * en debut de ligne]" \
+       ++ $*`
+else
+eval `${CCLARGS:-cclargs} $0 "[Fetch and merge all versions of all files found in the given directories]" \
+   -v1 ",,,," ",,,," "[Path of the directory containing all versions number 1]"\
+   -v2 "" "" "[Path of the directory containing all versions number 2]"\
+   -v3 "" "" "[Path of the directory containing all versions number 3]"\
+   -v4 "" "" "[Path of the directory containing all versions number 4]"\
+   -v5 "" "" "[Path of the directory containing all versions number 5]"\
+   -v6 "" "" "[Path of the directory containing all versions number 6]"\
+   -v7 "" "" "[Path of the directory containing all versions number 7]"\
+   -v8 "" "" "[Path of the directory containing all versions number 8]"\
+   -v9 "" "" "[Path of the directory containing all versions number 9]"\
+   -strip "non" "oui" "[strip=oui to remove empty lines and lines containing\nonly a C, c or * in the first column]" \
+   ++ $*`
+fi
+ici=`pwd`
+
+set $v1 $v2 $v3 $v4 $v5 $v6 $v7 $v8 $v9
+repertoires=$*
+
+# on ecrit dans le fichier confusion la liste des repertoires fouilles
+# et la variable vn qui si rapporte
+echo "\n" >> confusion
+if (test "$CMCLNG" = "francais")
+then
+   echo 'Correspondance entre les suffixes __Version# et les repertoires fouilles' >> confusion
+   echo "\n" >> confusion
+   echo '__Version#      Repertoire' >> confusion
+   message='On fouille le repertoire '
+   message1='FUSION DE: '
+   message2='Le fichier resultant aura pour nom '
+else
+   echo 'Relationship between the __Version# suffixes and the directories searched' >> confusion
+   echo "\n" >> confusion
+   echo '__Version#      Directory' >> confusion
+   message='Searching directory '
+   message1='MERGING OF :'
+   message2='The resulting file will be named '
+fi
+echo "\n" >> confusion
+
+n=1
+for i in $repertoires
+do
+     echo  __Version"$n" ':   '   $i  >> confusion
+     n=`expr $n + 1`
+done
+
+n=1
+if (test "$strip" = "oui")
+then
+     for i in $repertoires 
+     do
+         echo $message "$i"
+         cd "$i"
+         if(test "*.[fp]tn" != "`echo *.[fp]tn`")
+         then
+            set `echo *.[fp]tn` 
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  | sed -n '/./ p' | sed  '/^[cC*]$/d' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.[fp]tn90" != "`echo *.[fp]tn90`")
+         then
+            set `echo *.[fp]tn90` 
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  | sed -n '/./ p' | sed  '/^[cC*]$/d' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.[fcsh]" != "`echo *.[fcsh]`")
+         then
+            set `echo *.[fcsh]` 
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  | sed -n '/./ p' | sed  '/^[cC*]$/d' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.f90" != "`echo *.f90`")
+         then
+            set `echo *.f90` 
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  | sed -n '/./ p' | sed  '/^[cC*]$/d' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.cdk" != "`echo *.cdk`")
+         then
+            set `echo *.cdk`
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  | sed -n '/./ p' | sed  '/^[cC*]$/d' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.cdk90" != "`echo *.cdk90`")
+         then
+            set `echo *.cdk90`
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  | sed -n '/./ p' | sed  '/^[cC*]$/d' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.dot" != "`echo *.dot`")
+         then
+            set `echo *.dot`
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  | sed -n '/./ p' | sed  '/^[cC*]$/d' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.sh" != "`echo *.sh`")
+         then
+            set `echo *.sh`
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  | sed -n '/./ p' | sed  '/^[cC*]$/d' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         n=`expr $n + 1`
+         cd $ici
+     done
+else
+     for i in $repertoires 
+     do
+         echo $message "$i"
+         cd "$i"
+         if(test "*.[fp]tn" != "`echo *.[fp]tn`")
+         then
+            set `echo *.[fp]tn` 
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.[fp]tn90" != "`echo *.[fp]tn90`")
+         then
+            set `echo *.[fp]tn90` 
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.[fcsh]" != "`echo *.[fcsh]`")
+         then
+            set `echo *.[fcsh]` 
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.f90" != "`echo *.f90`")
+         then
+            set `echo *.f90` 
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g'  > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.cdk" != "`echo *.cdk`")
+         then
+            set `echo *.cdk`
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.cdk90" != "`echo *.cdk90`")
+         then
+            set `echo *.cdk90`
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.dot" != "`echo *.dot`")
+         then
+            set `echo *.dot`
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         if(test "*.sh" != "`echo *.sh`")
+         then
+            set `echo *.sh`
+            for fic in $*
+            do
+                cat $fic |sed 's/[ ]*$//g' > "$ici"/"$fic"__Version"$n"
+            done
+         fi
+         n=`expr $n + 1`
+         cd $ici
+     done
+fi
+
+cd "$ici"
+chmod 644 *__Version*
+#on fusionne tous les fichiers
+set `ls *__Version* | sed 's/__Version.//' |sort -u`
+la_liste=$*
+
+
+for fic in $la_liste
+do
+    set `ls "$fic"*`
+    if(test "$#" -gt "1")
+    then
+        echo $message1 $*
+        echo $message2 $fic
+        poly_parent $* 
+        poly_vers $fic $*
+        /bin/rm $*
+    else
+        mv $1 $fic
+    fi
+done

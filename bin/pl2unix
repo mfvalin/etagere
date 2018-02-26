@@ -1,0 +1,41 @@
+eval `cclargs -i "nil" "nil" -o "nil" "nil" -cc "%" "%" ++ $*`
+
+if(test "$i" = "nil")
+   then
+       i=''
+fi
+if(test "$o" = "nil")
+    then
+       o=''       
+fi
+
+cat > "$TMPDIR"/$$_direct <<+
+        {
+        if (\$1 ~ /^\*ADDFILE/ || \$1 ~ /^\*AF /)    \$1 = "${cc}ADDFILE"
+        if (\$1 ~ /^\*BEFORE/ || \$1 ~ /^\*B /)      \$1 = "${cc}BEFORE"
+        if (\$1 ~ /^\*CALL/ || \$1 ~ /^\*CA /)       \$1 = "${cc}CALL"
+        if (\$1 ~ /^\*CHANGE/ || \$1 ~ /^\*CH /)     \$1 = "${cc}CHANGE"
+        if (\$1 ~ /^\*COMDECK/ || \$1 ~ /^\*CD /)    \$1 = "${cc}COMDECK"
+        if (\$1 ~ /^\*COPY/ || \$1 ~ /^\*CY /)       \$1 = "${cc}COPY"
+        if (\$1 ~ /^\*CWEOR/ || \$1 ~ /^\*CW /)      \$1 = "${cc}CWEOR"
+        if (\$1 ~ /^\*COMPILE/ || \$1 ~ /^\*C /)     \$1 = "${cc}COMPILE"
+        if (\$1 ~ /^\*DECK/ || \$1 ~ /^\*DK /)       \$1 = "${cc}DECK"
+        if (\$1 ~ /^\*DEFINE/ || \$1 ~ /^\*DF /)     \$1 = "${cc}DEFINE"
+        if (\$1 ~ /^\*DELETE/ || \$1 ~ /^\*D /)      \$1 = "${cc}DELETE"
+        if (\$1 ~ /^\*ENDIF/ || \$1 ~ /^\*EI /)      \$1 = "${cc}ENDIF"
+        if (\$1 ~ /^\*ENDTEXT/ || \$1 ~ /^\*ET / )    \$1 = "${cc}ENDTEXT"
+        if (\$1 ~ /^\*IDENT/ || \$1 ~ /^\*ID /)      \$1 = "${cc}IDENT"
+        if (\$1 ~ /^\*IF/)                          \$1 = "${cc}IF"
+        if (\$1 ~ /^\*INSERT/ || \$1 ~ /^\*I /)      \$1 = "${cc}INSERT"
+        if (\$1 ~ /^\*PURDECK/ || \$1 ~ /^\*PD /)    \$1 = "${cc}PURDECK"
+        if (\$1 ~ /^\*PURGE/ || \$1 ~ /^\*P /)       \$1 = "${cc}PURGE"
+        if (\$1 ~ /^\*READ/ || \$1 ~ /^\*RD /)       \$1 = "${cc}READ"
+        if (\$1 ~ /^\*SEQUENCE/ || \$1 ~ /^\*S /)    \$1 = "${cc}SEQUENCE"
+        if (\$1 ~ /^\*WEOF/ || \$1 ~ /^\*EOF /)      \$1 = "${cc}WEOF"
+        if (\$1 ~ /^\*WEOR/ || \$1 ~ /^\*W /)        \$1 = "${cc}WEOR"
+        if (\$1 ~/^\*\//)                           \$1 = "${cc}/"
+        print
+        }
++
+     awk -f "$TMPDIR"/$$_direct $i > $o
+     rm "$TMPDIR"/$$_direct

@@ -1,0 +1,153 @@
+#!/bin/ksh
+################################################################
+# script servant a initialiser l'environnement necessaire
+# a une experience (creation du repertoire RCS, init de RCSPATH 
+# et RCSBASE, creation de histoire et ./.exper_cour
+#################################################################
+cree_RCS ()
+{
+mkdir RCS
+if(test "$CMCLNG" = "francais")
+then
+    echo On cree le repertoire RCS
+else
+    echo Creating the RCS directory
+fi
+touch histoire
+cat << LOG >"$TMPDIR"/"$$_log"
+"$1"
+version de base de l'experience
+LOG
+# on sauve histoire avec la revision $1
+
+ci -r1.0 -n"$1" histoire < "$TMPDIR"/"$$_log"
+}     
+
+
+#*********************************************
+# fonction servant a reconstruire un RCSPATH *
+# apres traitement par cclargs               *
+#*********************************************
+reconstruit_RCSPATH()
+{
+echo $* | grep ':' > /dev/null
+if(test "$?" = "0")
+then
+   echo $*
+   exit
+fi
+
+for i in $*
+do
+     if (test -d "${i}")
+     then
+         pathtmp="${pathtmp} ${i}"
+     else
+         pathtmp="${pathtmp}:${i}"
+     fi
+done
+echo ${pathtmp}
+}
+
+#valider le nom de l'experience a ouvrir
+if(test "$#" = "0" -o "$1" = "-RCSPATH" -o "$1" = "-+")
+then
+    if(test "$CMCLNG" = "francais")
+    then
+        echo "On ouvre l'experience 'base' tapez RETOUR pour confirmer"
+        echo "ou donnez le nom de l'experience a ouvrir
+\c"
+        read base
+    else
+        echo "Opening experiment 'base' press RETURN to confirm"
+        echo "or give the name of the experiment to open
+\c"
+        read base
+    fi
+else
+    base=$1
+    shift
+fi
+
+labase=${base:-base}
+
+#verifier si le fichier ./.exper_cour existe
+#si oui, on arrete
+#si non, on va le chercher
+if(test -s "./.exper_cour")
+then
+  if(test "$CMCLNG" = "francais")
+  then
+     echo 'Il y a deja une experience en cours.'
+     echo 'On arrete !'
+     echo 'Consultez le manpage de ouv_exp'
+   else
+     echo 'There is already an active experiment.'
+     echo 'STOP!'
+     echo 'Consult the ouv_exp manpage '
+    fi
+    exit 1
+fi
+
+#    verifier si le repertoire RCS existe si non on le cree
+     if(test ! -d RCS)
+     then
+      cree_RCS $labase
+     else
+#    verifier si le fichier histoire existe si non, on le cree
+        if(test ! -s RCS/histoire,v)
+        then
+            touch histoire
+cat << LOGH >"$TMPDIR"/"$$_log"
+"$labase"
+version de base de l'experience
+LOGH
+# on sauve histoire avec la revision $1
+
+           ci -r1.0 -n"$labase" histoire < "$TMPDIR"/"$$_log"
+         fi
+      fi
+
+#on va chercher le fichier ./.exper_cour
+
+co  -r"$labase" ./.exper_cour 2> /dev/null
+retour=$?
+if(test "$retour" = "0")
+then
+   chmod 644 ./.exper_cour
+elif (test -s RCS/./.exper_cour,v)
+then
+    if(test "$CMCLNG" = "francais")
+    then
+       echo "l'experience n'existe pas. On arrete!"
+       echo 'Consultez le manpage de ouv_exp'
+    else
+       echo "Experiment does not exists. STOP!"
+       echo 'Consult the ouv_exp manpage '
+    fi
+    exit 1
+else
+#on cree le ./.exper_cour
+    if(test "$CMCLNG" = "francais")
+     then
+      eval `${CCLARGS:-cclargs} $0 "[Script d'initialisation de l'environnement\nnecessaire a une experience]" -RCSPATH "${RCSPATH-,,,,}" ",,,," "[Chemin et version des differents repertoires RCS maitres a fouiller.\nRCSPATH='chemin1:rev1 chemin2:rev2...']" ++ $*`
+      else
+       eval `${CCLARGS:-cclargs} $0 "[Initialisation of the experiment's environnement]" -RCSPATH "${RCSPATH-,,,,}" ",,,," "[Paths and versions of the master RCS directories to search.\nRCSPATH=path1:rev1 path2:rev2...]" ++ $*`
+      fi
+RCSPATH=`reconstruit_RCSPATH $RCSPATH`
+cat >> ./.exper_cour << DDEF
+RCSPATH="$RCSPATH"
+RCSBASE="$labase"
+DDEF
+# on sauve ./.exper_cour avec la revision $labase
+cat << LOGPH >"$TMPDIR"/"$$_log"
+"$labase"
+version de base de l'experience
+LOGPH
+
+ci -r1.0 -n"$labase" ./.exper_cour < "$TMPDIR"/"$$_log"
+co  -r"$labase" ./.exper_cour
+chmod 644 ./.exper_cour
+fi
+# verifier pour des modules multiples avant de terminer l'ouverture
+mdm_exp

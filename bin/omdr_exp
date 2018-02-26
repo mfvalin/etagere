@@ -1,0 +1,80 @@
+#!/bin/ksh
+################################################################
+# script servant a obtenir une copie d'un  module a un niveau de
+# revision specifique different de celui dans la variable RCSPATH
+# sur laquelle on desire travailler lors d'une experience
+################################################################
+if(test "$#" = "0")
+then
+    echo 'usage:'
+    echo '      omdr_exp module revision'
+    exit 1
+elif(test "$#" = "1")
+then
+    echo 'usage:'
+    echo '      omdr_exp module revision'
+    exit 1
+fi
+. ./.exper_cour
+module=$1
+version=$2
+if(test "$version" = "base")
+then
+    version=''
+else
+    RCSPATH="RCS $RCSPATH"
+fi
+
+
+if(test -s "$module")
+then
+  if(test "$CMCLNG" = "francais")
+  then
+     echo "Il existe deja une version de $module on la remplace ? (n/o)
+\c"
+     read reponse
+  else
+     echo "There is already a version of $module we overwrite ? (n/y)
+\c"
+     read reponse
+  fi
+
+  case $reponse in
+     N*) exit 0;;
+     n*) exit 0;;
+  esac
+
+fi
+rm -f $module
+if(test "$CMCLNG" = "francais")
+then
+    messag1='extraction de la version '
+    messag2=' du module '
+    messag3='du repertoire '
+else
+    messag1='extraction of version '
+    messag2='of module '
+    messag3='from directory '
+fi
+for p in $RCSPATH
+do
+   set `echo "$p" | sed 's/:/ /'`
+   co -r"$version" "$1"/"$module",v  2> /dev/null
+   if(test -s "$module")
+   then
+     echo "$messag1" "$version" "$messag2" "$module" 
+     echo "$messag3" "$1"
+     chmod u+w "$module"
+     exit 0
+   fi
+done
+if(test ! -s "$module")
+then
+  if (test "$CMCLNG" = "francais")
+  then
+     echo la version "$version" du module "$module" est manquante
+  else
+     echo Version "$version" for module "$module" is missing
+  fi
+fi
+

@@ -1,0 +1,301 @@
+#!/bin/ksh
+################################################################
+# logiciel de gestion des experiences.
+# menu_exp sert a appeler tous les autres modules permettant de mener
+# a bien une experience geree par RCS
+# Auteur: James Caveen - decembre 1991
+#################################################################
+
+if(test "$CMCLNG" = "francais")
+then
+eval `${CCLARGS:-cclargs} $0 -+ "[Gestion d'experiences du systeme etagere]"\
+                    -ouv_exp "non" "oui" "[Mettre oui pour - Initialiser l'environnement necessaire a une experience]"\
+                    -frm_exp "non" "oui" "[Mettre oui pour - Terminer une experience\n                  et faire les sauvegardes qui s'imposent]"\
+                    -qui_exp "non" "oui" "[Mettre oui pour - Abandonner une experience]"\
+                    -hst_exp "non" "oui" "[Mettre oui pour - Obtenir l'historique de toutes les experiences faites\n                  a partir du repertoire de travail courant]"\
+                    -rev_exp "non" "oui" "[Mettre oui pour - Obtenir la liste des revisions d'un module dans tous\n                  les reperoires RCS (maitres et de travail)]"\
+                    -omd_exp "non" "oui" "[Mettre oui pour - Obtenir des copies de travail des differents modules\n                  necessaires a l'experience]"\
+                    -omdr_exp "non" "oui" "[Mettre oui pour - Obtenir une copie de travail d'un module\n                  a un niveau de revision specifique]"\
+                    -clt_exp "non" "oui" "[Mettre oui pour - Obtenir des copies de lecture de differents modules]"\
+                    -cltr_exp "non" "oui" "[Mettre oui pour - Obtenir une copie de lecture d'un module\n                  a un niveau de revision specifique]"\
+                    -dir_exp "non" "oui" "[Mettre oui pour - Voir a l'ecran le contenu des differents\n                   repertoires RCS maitres]"\
+                    -make_exp "non" "oui" "[Mettre oui pour - Construction d'un fichier Makefile pertinent\n                  a l'experience en cours]"\
+                    -eff_exp   "non" "oui" "[Mettre oui pour - Effacer une experience de votre repertoire RCS]"\
+                    -mrcs_exp "non" "oui" "[Mettre oui pour - Modifier la valeur de RCSPATH pour l'experience en cours]"\
+                    -sor_exp "non" "oui" "[Mettre oui pour - Sortir du RCS local tous les fichers sources\n                   associes a une experience]"\
+                    -smod_exp "non" "oui" "[Mettre oui pour - Sortir du RCS local tous les fichiers modifies\n                  par rapport a une autre experience]"\
+                    -mdm_exp "non" "oui" "[Mettre oui pour - Verifier si des modules du meme nom existent dans differents\n                  repertoires RCS maitres]" ++ $* `
+
+else
+
+eval `${CCLARGS:-cclargs} $0 -+ "[Managing experiments of the etagere system]"\
+                    -ouv_exp "no" "yes" "[Enter yes to - Set up the proper environnement to perform an experiment]"\
+                    -frm_exp "no" "yes" "[Enter yes to - End an experiment and save all the files]"\
+                    -qui_exp "no" "yes" "[Enter yes to - Quit an experiment whithout any files saved]"\
+                    -hst_exp "no" "yes" "[Enter yes to - Obtain a summary of all the experiments done to date\n               in the current directory]"\
+                    -rev_exp "no" "yes" "[Enter yes to - Obtain a revision list for a source file in one or more\n               RCS directories (master or working RCS directories)]"\
+                    -omd_exp "no" "yes" "[Enter yes - To obtain working copies of the required source files]"\
+                    -omdr_exp "no" "yes" "[Enter yes - To obtain a working copie of of a required source file\n          at a specific revision level]"\
+                    -clt_exp "no" "yes" "[Enter yes - To obtain read only copies of source files]"\
+                    -cltr_exp "no" "yes" "[Enter yes - To obtain a read only copie of a source file\n          at a specific revision level]"\
+                    -dir_exp "no" "yes" "[Enter yes - To list the content of the various\n            RCS master directories]"\
+                    -make_exp "no" "yes" "[Enter yes to - Obtain a suitable Makefile file\n               for the current experiment]"\
+                    -eff_exp   "no" "yes" "[Enter yes to - Erase an experiment from your RCS directory]"\
+                    -mrcs_exp "no" "yes" "[Enter yes to - Modify the value of RCSPATH\n               for the the current experiment]"\
+                    -sor_exp "no" "yes" "[Enter yes to - Extract all source files  from the local RCS\n               for a given experiment]"\
+                    -smod_exp "no" "yes" "[Enter yes to - Extract from the local RCS all files differing\n               from a reference experiment]"\
+                    -mdm_exp "no" "yes" "[Enter yes to - Check if two or more files from\n               different Master RCS bear the same name]" ++ $* `
+fi
+
+if (test "$sor_exp" = "oui" -o "$sor_exp" = "yes")
+     then
+     if (test "$CMCLNG" = "francais")
+     then
+        echo 'sor_exp - Sortir tous les fichiers'
+        echo "Donnez le nom de l'experience
+\c"
+        read experience
+      else
+        echo " sor_exp - Extract all files"
+        echo " Enter name of experiment
+\c"
+        read experience
+      fi
+  sor_exp $experience
+fi
+if (test "$eff_exp" = "oui" -o "$eff_exp" = "yes")
+     then
+     if (test "$CMCLNG" = "francais")
+     then
+        echo 'eff_exp - Effacer une experience'
+        echo "Donnez le nom de l'experience
+\c"
+        read experience
+      else
+        echo " eff_exp - Erase an experiment"
+        echo " Enter name of experiment
+\c"
+        read experience
+      fi
+  eff_exp $experience
+  exit 0
+fi
+
+if (test "$hst_exp" = "oui" -o "$hst_exp" = "yes")
+then 
+     if (test "$CMCLNG" = "francais")
+     then
+      echo "hst_exp - Historique pour le repertoire de travail courant"
+     else
+      echo "hst_exp - Experiment history for the current working directory"
+     fi
+      hst_exp
+fi
+
+if (test "$ouv_exp" = "oui" -o "$ouv_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+        echo "ouv_exp - Ouvrir une experience"
+     else
+        echo "ouv_exp - Open an experiment"
+     fi
+     ouv_exp
+     retour_ouv=$?
+     if(test "$retour_ouv" != "0")
+      then  exit 1
+     fi
+fi
+
+
+if (test "$smod_exp" = "oui" -o "$smod_exp" = "yes")
+     then
+     if (test "$CMCLNG" = "francais")
+     then
+        echo 'smod_exp - Sortir les modifs par rapport a une experience de reference'
+
+        echo "Donnez le nom de l'experience de reference
+\c"
+        read experience
+      else
+        echo " smod_exp - Extract all files that differ from a reference experiment"
+        echo " Enter name of reference experiment
+\c"
+        read experience
+      fi
+  smod_exp $experience
+fi
+
+if(test "$mrcs_exp" = "oui" -o "$mrcs_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+      echo "mrcs_exp - Modification de la variable RCSPATH pour l'experience en cours"
+     else
+      echo "mrcs_exp - Modifying the value of RCSPATH for the current experiment"
+     fi
+      mrcs_exp -+
+fi
+
+if (test "$mdm_exp" = "oui" -o "$mdm_exp" = "yes")
+then
+     if(test "$CMCLNG" = "francais")
+     then
+         echo 'mdm_exp - Verifier pour modules multiples'
+     else
+         echo 'mdm_exp - Checking for multiple modules'
+     fi
+     mdm_exp
+fi
+
+if(test "$dir_exp" = "oui" -o "$dir_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+        echo 'dir_exp - Voir le contenu des repertoires RCS maitres'
+     else
+        echo 'dir_exp - List the content of the RCS master directories'
+     fi
+     dir_exp
+     retour_dir=$?
+     if(test "$retour_dir" != "0")
+          then exit 1
+     fi
+fi
+
+if (test "$rev_exp" = "oui" -o "$rev_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+       echo "rev_exp -  Obtenir la liste des revisions RCS d'un module "
+       echo "Donnez le nom du module
+\c"
+       read rev_rev
+     else
+       echo " rev_exp - Obtain RCS revision list for  a file"
+       echo "Give name of the module
+\c"
+       read rev_rev
+     fi
+     rev_exp $rev_rev
+fi
+
+
+if (test "$clt_exp" = "oui" -o "$clt_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+       echo "clt_exp - Aller chercher des copies de lecture de modules "
+       echo "Donnez le nom des differents modules (Terminez par CTL-D seul sur une ligne)"
+     else
+       echo " clt_exp - Fetch read only  copies of files"
+       echo "Enter names of required files (End with CTL-D on a single line)"
+     fi
+       cat >> "$TMPDIR"/"$$_cltmodules"
+       set null `cat "$TMPDIR"/"$$_cltmodules"`
+       shift
+       clt_exp $*
+fi
+
+if (test "$cltr_exp" = "oui" -o "$cltr_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+       echo "cltr_exp - Aller chercher une copie de lecture d'un module "
+       echo "           a un niveau de revision donne"
+       echo "Donnez le nom du module
+\c"
+       read cltrrev
+       echo "Donnez le numero de la revision
+\c"
+       read lacltrrev
+     else
+       echo " cltr_exp - Fetch read only  copie of a file"
+       echo "           at a given revision level"
+       echo "Give name of the module
+\c"
+       read cltrrev
+       echo "Give the revision number
+\c"
+       read lacltrrev
+     fi
+       cltr_exp $cltrrev $lacltrrev
+fi
+
+if (test "$omd_exp" = "oui" -o "$omd_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+       echo "omd_exp - Aller chercher des copies de travail des modules necessaires"
+       echo "Donnez le nom des differents modules (Terminez par CTL-D seul sur une ligne)"
+     else
+       echo " omd_exp - Fetch working copies of files"
+       echo "Enter names of required files (End with CTL-D on a single line)"
+     fi
+       cat >> "$TMPDIR"/"$$_modules"
+       set null `cat "$TMPDIR"/"$$_modules"`
+       shift
+       omd_exp $*
+fi
+
+if (test "$omdr_exp" = "oui" -o "$omdr_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+       echo "omdr_exp - Aller chercher une copie de travail d'un module "
+       echo "           a un niveau de revision donne"
+       echo "Donnez le nom du module
+\c"
+       read omdrrev
+       echo "Donnez le numero de la revision
+\c"
+       read laomdrrev
+     else
+       echo " omdr_exp - Fetch a working  copie of a file"
+       echo "           at a given revision level"
+       echo "Give name of the module
+\c"
+       read omdrrev
+       echo "Give the revision number
+\c"
+       read laomdrrev
+     fi
+       omdr_exp $omdrrev $laomdrrev
+fi
+
+
+if(test "$make_exp" = "oui" -o "$make_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+      echo "make_exp - Construction d'un fichier Makefile pour l'experience"
+     else
+      echo "make_exp - Creating a Makefile file for the current experiment"
+     fi
+      make_exp
+fi
+
+if (test "$frm_exp" = "oui" -o "$frm_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+      echo "frm_exp - Fermeture de l'experience"
+     else
+      echo "frm_exp - Closing the current experiment"
+     fi
+     frm_exp
+elif (test "$qui_exp" = "oui" -o "$qui_exp" = "yes")
+then
+     if (test "$CMCLNG" = "francais")
+     then
+      echo "qui_exp - Quitter une experience"
+     else
+      echo "qui_exp - Quiting the current experiment"
+     fi
+      qui_exp
+fi
+
+ 
+if(test -s "$TMPDIR"/$$_*)
+ then rm "$TMPDIR"/$$_*
+fi

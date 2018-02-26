@@ -1,0 +1,86 @@
+
+eval `cclargs $0 "[traduction de directives de type cpp a des directives\nde type UPDATE et creation d'un fichier source]"\
+     -sortie "nul" "nul" "[nom du fichier contenant le source resultant]" \
+     -extcdk ".cdk" ".cdk" "[extention des fichiers contenant les COMDECKS]"\
+     -extdck ".dck" ".dck" "[extention des fichiers contenant les DECKS]" ++ $*`
+
+if(test "$sortie" = "nul")
+    then
+      $sortie=''
+fi
+
+cat > "$TMPDIR"/$$_direct <<+
+BEGIN{  maj["a"]="A";maj["b"]="B";maj["c"]="C";maj["d"]="D";
+        maj["e"]="E";maj["f"]="F";maj["g"]="G";maj["h"]="H";
+        maj["i"]="I";maj["j"]="J";maj["k"]="K";maj["l"]="L";
+        maj["m"]="M";maj["n"]="N";maj["o"]="O";maj["p"]="P";
+        maj["q"]="Q";maj["r"]="R";maj["s"]="S";maj["t"]="T";
+        maj["u"]="U";maj["v"]="V";maj["w"]="W";maj["x"]="X";
+        maj["y"]="Y";maj["z"]="Z"
+
+       if(match(FILENAME,/$extdck/))
+       {
+         gsub(/$extdck/,"",FILENAME)
+         FILENAME=majuscule(FILENAME,maj)
+         print "%DECK",FILENAME
+       }
+       else
+       {
+         gsub(/$extcdk/,"",FILENAME)
+         FILENAME=majuscule(FILENAME,maj)
+         print "%COMDECK",FILENAME
+       }
+     }
+
+{
+
+       if(\$1 == "#include")
+       {
+          \$1 = "%CALL"
+          gsub(/$extcdk/,"",\$2)
+          gsub(/"/,"",\$2)
+          \$2=majuscule(\$2,maj) 
+       }       
+       if(\$1 == "#if")
+       {
+           \$1 = "%IF"
+           if(\$2 == "defined")
+                  \$2 = "DEF,"
+           if(\$2 == "!defined")
+                   \$2 = "-DEF,"
+       
+           gsub(/\(/,"",\$3)
+           gsub(/\)/,"",\$3) 
+           \$3 = majuscule(\$3,maj)
+           \$0=\$1" " \$2 \$3
+        }
+        if(\$1 == "#endif")
+        {
+            \$1 = "%ENDIF"
+        }
+       print
+
+}
+
+function majuscule(nom,maj)
+{
+         
+         l=length(nom)
+         for(i=1;i<=l;i++)
+         {
+            car=substr(nom,i,1)
+            if(maj[car] != "") 
+            {
+               gexpr = maj[car]
+               gsub(car,gexpr,nom)
+            }
+         }
+         return nom
+} 
++
+for i in *$extcdk *$extdck 
+do
+   nawk -f "$TMPDIR"/$$_direct $i >> $sortie
+done
+
+/bin/rm "$TMPDIR"/$$_direct

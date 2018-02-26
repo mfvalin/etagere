@@ -1,0 +1,62 @@
+
+
+###############################################################
+#                                                             #
+#  script servant a sortir du repertoire RCS local            #
+#  tous les fichiers .ftn et .cdk associes a une experience   #
+#  extrait_tout ne sort que des fichiers non vides.           #
+#  ce script est appele de l'interieur du fichier Makefile    #
+#  par la cible sortirtout                                    #
+#  Ne pas confondre avec sor_exp                              #
+#                                                             #
+#  james caveen - rpn - fevrier 1992                          #
+#                                                             #
+###############################################################
+
+if(test ! -s ./.exper_cour)
+then
+    if(test "$CMCLNG" = "francais")
+    then
+      echo "il n'y a pas d'experience en cours. ERREUR!"
+    else
+      echo "there is no active experiment. ERROR!"
+    fi
+    exit 1
+fi
+    
+#initialiser l'environnement
+. ./.exper_cour
+
+#obtenir la liste des fichiers du repertoire RCS
+
+ici=`pwd`
+ls *.[fp]tn *.cdk *.[fcsh]  *.txt *.*_sh > $TMPDIR/$$_ici_ls
+
+cd RCS
+ls *.[fp]tn,v *.cdk,v *.[fcsh],v *.txt,v  *.*_sh,v | sed 's/,v//g' > $TMPDIR/$$_RCS_ls
+cd $ici
+
+if(test -s "$TMPDIR"/"$$_RCS_ls")
+then
+   if(test -s "$TMPDIR"/"$$_ici_ls")
+   then
+    sort "$TMPDIR"/"$$_RCS_ls"  > "$TMPDIR"/"$$_RCS_ls2"
+    sort "$TMPDIR"/"$$_ici_ls"  > "$TMPDIR"/"$$_ici_ls2"
+    comm -23 "$TMPDIR"/"$$_RCS_ls2" "$TMPDIR"/"$$_ici_ls2" > "$TMPDIR"/"$$_dansRCS"
+   else
+      cp "$TMPDIR"/"$$_RCS_ls" "$TMPDIR"/"$$_dansRCS"
+   fi
+fi
+
+if(test -s $TMPDIR/$$_dansRCS)
+then
+   set `cat $TMPDIR/$$_dansRCS`
+   for i in $*
+   do
+     co -r$RCSBASE $i 2> /dev/null
+     if(test ! -s "$i")
+         then rm -f $i 2> /dev/null
+     fi
+   done
+fi
+rm -f $TMPDIR/$$_*

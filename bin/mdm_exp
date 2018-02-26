@@ -1,0 +1,88 @@
+#!/bin/ksh
+##################################################################
+# verifier s'il existe des fichiers ayants le meme nom dans
+# les differents repertoires RCS maitres afin de parer d'eventuels
+# conflits lors de l'acquisition des modules.
+# s'il existe des copies multiples, on imprime la liste sur 
+# le fichier de sortie standard
+#
+# James Caveen, decembre 1991
+###################################################################
+
+.  ./.exper_cour
+
+
+#obtenir le contenu de tous les repertoires RCS maitres
+set null
+for p in $RCSPATH
+do
+      set $* `echo $p | sed 's/:.*//'`
+done
+shift
+if(test $# -lt 2)
+then
+    exit 0
+fi
+
+
+if(test "$CMCLNG" = "francais")
+then
+   echo " On s'assure que tous les modules des differents "
+   echo " repertoires RCS maitres ont des noms differents"
+     echo On compare le contenu des repertoires:
+#initialisation des autre messages a afficher
+     ladup='Duplication de noms dans les repertoires'
+     lerep='Repertoire'
+     laliste='Liste des modules'
+else
+   echo " Checking that no two files in the different"
+   echo " master RCS directories have the same name"
+     echo Comparing the contents of directories:
+#initialisation des autre messages a afficher
+     ladup='Name duplication in directories'
+     lerep='Directory'
+     laliste='File list'
+fi
+for i in $*
+do
+   echo '      '  $i
+done
+
+liste=""
+for rep in $*
+do
+     liste="$liste $rep"
+     repnom=`echo $rep | sed 's/\//_/g'`
+     ls $rep | sort > "$TMPDIR"/$$_$repnom
+done
+
+#comparaison de contenus
+
+cntr=1
+set null $liste
+shift
+nbarg=$#
+while(test "$cntr" -lt "$nbarg")
+do
+   rep1=$1
+   repnom1=`echo $rep1 | sed 's/\//_/g'`
+   shift
+   for rep2 in $*
+   do
+     repnom2=`echo $rep2 | sed 's/\//_/g'`
+     comm -12 "$TMPDIR"/$$_$repnom1 "$TMPDIR"/$$_$repnom2 > "$TMPDIR"/$$_compare
+     if(test -s "$TMPDIR"/$$_compare)
+     then
+         echo "\n"
+         echo "$ladup"
+         echo "$lerep" ' 1: '"$rep1"
+         echo "$lerep" ' 2: '"$rep2"
+         echo "\n"
+         echo "$laliste"
+         echo "\n"
+         cat "$TMPDIR"/$$_compare
+     fi
+   done
+   cntr=`expr $cntr + 1`
+done
+/bin/rm "$TMPDIR"/$$_* 2> "/dev/null"

@@ -1,0 +1,155 @@
+
+####################################################################
+# Script servant a afficher les differentes recettes du fichier
+# Makefile et a faire l'appel a make avec le choix de l'usager
+# Auteur: James Caveen - decembre 1991
+# Modification: mars 1993
+#               nouveau mode d'operation. fait_le_menu n'appelle plus
+#               make. Il se contente de faire un echo de la cible desiree.
+#               la cible est retournee a la cible make_menu qui se charge
+#               de faire l'appel recursif a make.
+#
+#     e.g.,     avant:
+#                      make_menu:
+#                                  fait_le_menu $(DEFINE)
+#                  provoquait l'emission de la commande make DEFINE=... cible
+#
+#               maintenant:
+#                      make_menu:
+#                                  $(MAKE) "DEFINE=$(DEFINE)",,, `fait_le_menu`
+####################################################################
+make_menu()
+{
+$LOGI '
+BEGIN {
+    rmax=int(ARGV[1] / 2) - 2
+    defcpp=ARGV[2]
+    while((getline <"Makefile")  > 0)
+    {
+       if ($0 ~ /LISTE DES CIBLES DU FICHIER recettes/)
+            break
+    }
+
+    compteur=0
+    while((getline <"Makefile")  > 0)
+    {
+      if ($0 ~ /^[^	].*:/)   # on a une cible
+      {
+           if (++names[nm = $1] > 1)
+           {
+                error(nm " est defini plusieurs fois")
+                exit
+           }
+          
+           compteur++
+           sub(/:/,"")
+           nom[compteur] = $1
+           indice[compteur] = compteur
+            
+      }
+      else if (($0 ~ /^#/) && !length(defin[compteur]))  #on a la definition
+      {
+            sub(/#/,"")
+            gsub(/\\n/,"\n                 ",$0)
+            defin[compteur] = $0      
+      }
+      else if ($0 ~ /^NRECETTES/)   # nombre de recetttes a afficher a la fois
+      {
+             sub(/\=/," ")
+             rmax = $2
+      }
+     }
+    ARGV[1] = "-"
+    debut = 1
+    fin = minim(compteur,rmax)
+    pasfini = 1
+    while(pasfini)
+    {
+     system("clear > /dev/tty")
+    printf("\n                 LISTE DES CIBLES DU FICHIER Makefile\n\n") > "/dev/tty"
+
+     for (i = debut ; i<= fin; i++)
+     {
+       printf("%2d - %10s: %s\n",indice[i],nom[i],defin[i]) >> "/dev/tty"
+     }
+     printf("\n") >> "/dev/tty"
+     debut2=minim(fin +1,compteur)
+
+     if(debut > 1)
+     {
+        printf("     Entrez p pour la page precedente\n") >> "/dev/tty"
+        precedentok=1
+     }
+     else
+        precedentok=0
+
+
+     if(fin < compteur)
+     {
+        printf("     Entrez n pour la page suivante\n") >> "/dev/tty"
+        suivantok=1
+     }
+     else
+        suivantok=0
+
+     printf("     Entrez q pour quitter\n") >> "/dev/tty"
+     printf("\nS.V.P Entrez le numero de votre choix:") >> "/dev/tty"
+
+     getline reponse
+
+     if((reponse ~ /[Nn]/) && (suivantok))
+     {
+          debut = debut2
+          fin = minim(debut+rmax -1,compteur)
+     }
+
+     else if((reponse ~ /[Pp]/) && (precedentok))
+     {
+          fin = maxim(debut-1,1)
+          debut=maxim(fin-rmax+1,1)
+     } 
+     else if(reponse ~ /[Qq]/)
+     {
+           print "exit 1"
+           exit
+     }
+    
+     else if(reponse ~ /[0-9].*/)
+             break
+
+     } 
+     
+      print "Votre choix: " nom[reponse] >> "/dev/tty"
+      
+      print nom[reponse]
+
+}
+
+function maxim(m,n)
+{
+     return m >n ? m : n
+}
+function minim(m,n)
+{
+     return m <n ? m : n
+}
+
+function error(s)
+{
+      print "error: " s >> "/dev/tty"
+      print "exit 1"
+}
+' $1
+}
+
+#verifier si on utilise awk ou nawk (nawk pas disponible sur 4680)
+if (test -s /usr/bin/nawk)
+    then  LOGI='/usr/bin/nawk'
+else
+          LOGI='awk'
+fi
+cible=`make_menu ${LINES:-24}`
+if (test "$cible" = "exit 1")
+then exit 1
+fi
+echo $cible

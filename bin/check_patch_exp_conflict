@@ -1,0 +1,26 @@
+#!/bin/sh
+  for full_patch_name in $*
+  do
+    model_to_patch=${full_patch_name%%/*}
+    patch_name=${full_patch_name##*/}
+    model_and_version=${full_patch_name%/*}
+    version_to_patch=${model_and_version#*/}
+    extra_rcs_path=$ARMNLIB/modeles/$model_to_patch/v_$version_to_patch/patches/$patch_name
+    if [[ -d ${extra_rcs_path:-does_not_exist} ]]
+    then
+      for name_to_check in ${extra_rcs_path}/*
+      do
+        file_to_check=${name_to_check##*/}
+        file_to_check=${file_to_check%,v}
+        if [[ -f $file_to_check || -f RCS/${file_to_check},v || -f ${file_to_check},v ]]
+        then
+           echo CONFLICT FOUND FOR $file_to_check
+           exit 1
+        fi
+      done
+    else
+      echo patch $full_patch_name not found
+    fi
+  done
+unset model_to_patch patch_name full_patch_name model_and_version version_to_patch RCSPATH_PLUS file_to_check name_to_check
+exit 0

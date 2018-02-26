@@ -1,0 +1,44 @@
+#!/bin/ksh
+##################################################################
+# effacer une revision de tous les fichiers dans le repertoire RCS
+# i.e. effacer une experience qu'on a deja fermee avec frm_exp
+# on ne peut effacer un experience sur un noeud
+# Auteur: James Caveen - decembre 1991
+###################################################################
+
+if (test "$#" = "0")
+then
+   if(test "$CMCLNG" = "francais")
+   then
+      echo "usage:"
+      echo "      eff_exp nom_experience"
+   else
+      echo "usage:"
+      echo "      eff_exp experiment_name"
+   fi
+      exit 1
+fi
+
+revision=$1
+# effacer la revision de tous les modules dans RCS
+
+rcs -o"$revision" RCS/./.exper_cour,v
+retour="$?"
+  if(test "$retour" = "1")
+  then
+     if(test "$CMCLNG" = "francais")
+     then
+        echo "On ne peut effacer l'experience specifiee"
+        echo "Consultez le manpage de eff_exp"
+     else
+        echo "The experiment cannot be erased"
+        echo "Consult the eff_exp manpage"
+     fi
+     exit 1
+  fi
+  rcs -o"$revision" RCS/*
+
+# desactiver le nom symbolique associe au numero de revision
+
+  rcs -n"$revision" RCS/*
+  rcs -n"$revision" RCS/./.exper_cour,v
